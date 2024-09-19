@@ -3,7 +3,7 @@ import re
 import argparse
 from datetime import datetime
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, simpledialog
 
 # Global debug flag
 DEBUG = False
@@ -505,11 +505,13 @@ def convert_kriegspiel(ludii_content, input_file):
     return pgn
 
 def build_pgn_header(input_file, variant, result):
-    event_name = os.path.splitext(os.path.basename(input_file))[0]
+    event_name = get_event_name(input_file)
+    white_player, black_player = get_player_names()
+    
     pgn = f'[Event "{event_name}"]\n'
     pgn += f'[Date "{get_file_creation_date(input_file)}"]\n'
-    pgn += '[White "Player 1"]\n'
-    pgn += '[Black "Player 2"]\n'
+    pgn += f'[White "{white_player}"]\n'
+    pgn += f'[Black "{black_player}"]\n'
     pgn += f'[Variant "{variant}"]\n'
     pgn += f'[Result "{result}"]\n\n'
     return pgn
@@ -579,7 +581,7 @@ def get_input_file():
     args = parser.parse_args()
 
     if args.file:
-        return args.file
+        return ensure_file_extension(args.file, '.trl')
     
     try:
         import tkinter as tk
@@ -594,29 +596,113 @@ def get_input_file():
     
     while True:
         file_path = input("Please enter the path to the .trl file: ")
-        if os.path.exists(file_path) and file_path.endswith('.trl'):
-            return file_path
+        file_path_with_extension = ensure_file_extension(file_path, '.trl')
+        if os.path.exists(file_path_with_extension):
+            return file_path_with_extension
         else:
             print("Invalid file path. Please try again.")
+
+def get_output_file(input_file):
+    parser = argparse.ArgumentParser(description="Convert Ludii trial files to PGN.")
+    parser.add_argument("-f", "--file", help="Path to the input .trl file")
+    parser.add_argument("-o", "--output", help="Path to the output .pgn file")
+    args = parser.parse_args()
+
+    if args.output:
+        return ensure_file_extension(args.output, '.pgn')
+    
+    default_output = os.path.splitext(input_file)[0] + ".pgn"
+    
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".pgn",
+            filetypes=[("PGN files", "*.pgn")],
+            initialfile=os.path.basename(default_output),
+            initialdir=os.path.dirname(default_output)
+        )
+        if file_path:
+            return file_path
+    except:
+        pass
+    
+    while True:
+        file_path = input(f"Please enter the path for the output .pgn file (press Enter to use default: {default_output}): ")
+        if not file_path:
+            return default_output
+        file_path_with_extension = ensure_file_extension(file_path, '.pgn')
+        return file_path_with_extension
+
+def ensure_file_extension(file_path, extension):
+    if not file_path.lower().endswith(extension):
+        return file_path + extension
+    return file_path
+
+def get_event_name(input_file):
+    parser = argparse.ArgumentParser(description="Convert Ludii trial files to PGN.")
+    parser.add_argument("-e", "--event", help="Name of the event")
+    args = parser.parse_args()
+
+    if args.event:
+        return args.event
+    
+    default_event = os.path.splitext(os.path.basename(input_file))[0]
+    
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        event_name = simpledialog.askstring("Event Name", "Enter the event name:", initialvalue=default_event)
+        if event_name:
+            return event_name
+    except:
+        pass
+    
+    event_name = input(f"Enter the event name (press Enter to use default: {default_event}): ")
+    return event_name if event_name else default_event
+
+def get_player_names():
+    parser = argparse.ArgumentParser(description="Convert Ludii trial files to PGN.")
+    parser.add_argument("-w", "--white", help="Name of the white player")
+    parser.add_argument("-b", "--black", help="Name of the black player")
+    args = parser.parse_args()
+
+    if args.white and args.black:
+        return args.white, args.black
+    
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        white_player = simpledialog.askstring("White Player", "Enter the name of the white player:", initialvalue="Player 1")
+        black_player = simpledialog.askstring("Black Player", "Enter the name of the black player:", initialvalue="Player 2")
+        if white_player and black_player:
+            return white_player, black_player
+    except:
+        pass
+    
+    white_player = input("Enter the name of the white player (press Enter to use default: Player 1): ")
+    black_player = input("Enter the name of the black player (press Enter to use default: Player 2): ")
+    return white_player if white_player else "Player 1", black_player if black_player else "Player 2"
 
 if __name__ == "__main__":
     input_file = get_input_file()
     
     if input_file:
-
         DEBUG = True
 
-        base_name = os.path.splitext(os.path.basename(input_file))[0]
-        output_file = f"{base_name}.pgn"
+        output_file = get_output_file(input_file)
 
         convert_trl_to_pgn(input_file, output_file)
         
         print(f"PGN file saved as {output_file}")
 
         if DEBUG:
+            base_name = os.path.splitext(output_file)[0]
             filtered_output_file = f"{base_name}_filtered.pgn"
             filter_moves(output_file, filtered_output_file)
             print(f"Filtered PGN file saved as {filtered_output_file}")
 
     else:
-        print("No file selected. Exiting.")
+        print("No input file selected. Exiting.")
