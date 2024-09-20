@@ -44,8 +44,8 @@ This Python script converts Ludii trial files (.trl) to Portable Game Notation (
 
 2. Clone this repository or download the script file:
    ```
-   git clone https://github.com/yourusername/chess-game-converter.git
-   cd chess-game-converter
+   git clone https://github.com/chiar0/TRLtoPGN.git
+   cd TRLtoPGN
    ```
 
 3. Install required packages:
