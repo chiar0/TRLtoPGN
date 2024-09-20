@@ -102,7 +102,3 @@ Set the `DEBUG` variable to `True` in the script to enable detailed logging. Thi
 ## Contributing
 
 Contributions, issues, and feature requests are welcome. Feel free to check issues page if you want to contribute.
-
-## License
-
-This project is licensed under the GNU General Public License v3.0 (GPLv3) - see the LICENSE file for details. This is one of the most permissive open-source licenses, ensuring that derivatives of this software also remain open source.
