@@ -81,43 +81,45 @@ def get_file_creation_date(file_path):
         debug_print(f"Error getting file creation date: {e}")
         return "????.??.??"
     
-
-def get_input_file():
+def get_input_files():
     """
-    Prompts the user to provide the input .trl file path.
+    Prompts the user to provide multiple input .trl file paths.
     
     Returns:
-        str: Path to the input .trl file.
-    
-    This function first checks for command-line arguments, then tries to
-    use a file dialog if available, and finally falls back to manual input.
-    It ensures that the file exists and has the correct extension.
+        list: Paths to the input .trl files.
     """
+    print("Debug: Entering get_input_files function")
     parser = argparse.ArgumentParser(description="Convert Ludii trial files to PGN.")
-    parser.add_argument("-f", "--file", help="Path to the input .trl file")
+    parser.add_argument("-f", "--files", nargs='+', help="Paths to the input .trl files")
     args = parser.parse_args()
 
-    if args.file:
-        return ensure_file_extension(args.file, '.trl')
+    if args.files:
+        print(f"Debug: Files provided via command line: {args.files}")
+        return [ensure_file_extension(file, '.trl') for file in args.files]
     
     try:
-        import tkinter as tk
-        from tkinter import filedialog
         root = tk.Tk()
         root.withdraw()
-        file_path = filedialog.askopenfilename(filetypes=[("Ludii Trial files", "*.trl")])
-        if file_path:
-            return file_path
-    except:
-        pass
+        file_paths = filedialog.askopenfilenames(filetypes=[("Ludii Trial files", "*.trl")])
+        if file_paths:
+            print(f"Debug: Files selected via GUI: {file_paths}")
+            return list(file_paths)
+    except Exception as e:
+        print(f"Debug: Error in file dialog: {e}")
     
+    files = []
     while True:
-        file_path = input("Please enter the path to the .trl file: ")
+        file_path = input("Please enter the path to a .trl file (or press Enter to finish): ")
+        if not file_path:
+            break
         file_path_with_extension = ensure_file_extension(file_path, '.trl')
         if os.path.exists(file_path_with_extension):
-            return file_path_with_extension
+            files.append(file_path_with_extension)
         else:
             print("Invalid file path. Please try again.")
+    
+    print(f"Debug: Files entered manually: {files}")
+    return files
 
 def get_output_file(input_file):
     """
@@ -175,10 +177,6 @@ def get_event_name(input_file):
     
     Returns:
         str: The event name for the chess game.
-    
-    This function checks for a command-line argument, tries to use a
-    dialog box if available, and falls back to manual input. It uses
-    the input file name as a default event name.
     """
     parser = argparse.ArgumentParser(description="Convert Ludii trial files to PGN.")
     parser.add_argument("-e", "--event", help="Name of the event")
@@ -201,16 +199,16 @@ def get_event_name(input_file):
     event_name = input(f"Enter the event name (press Enter to use default: {default_event}): ")
     return event_name if event_name else default_event
 
-def get_player_names():
+def get_player_names(default_white="Player 1", default_black="Player 2"):
     """
     Prompts the user to provide names for the white and black players.
     
+    Args:
+        default_white (str): Default name for the white player.
+        default_black (str): Default name for the black player.
+    
     Returns:
         tuple: A tuple containing the names of the white and black players.
-    
-    This function checks for command-line arguments, tries to use dialog
-    boxes if available, and falls back to manual input. It provides default
-    names if the user doesn't specify any.
     """
     parser = argparse.ArgumentParser(description="Convert Ludii trial files to PGN.")
     parser.add_argument("-w", "--white", help="Name of the white player")
@@ -223,16 +221,16 @@ def get_player_names():
     try:
         root = tk.Tk()
         root.withdraw()
-        white_player = simpledialog.askstring("White Player", "Enter the name of the white player:", initialvalue="Player 1")
-        black_player = simpledialog.askstring("Black Player", "Enter the name of the black player:", initialvalue="Player 2")
+        white_player = simpledialog.askstring("White Player", "Enter the name of the white player:", initialvalue=default_white)
+        black_player = simpledialog.askstring("Black Player", "Enter the name of the black player:", initialvalue=default_black)
         if white_player and black_player:
             return white_player, black_player
     except:
         pass
     
-    white_player = input("Enter the name of the white player (press Enter to use default: Player 1): ")
-    black_player = input("Enter the name of the black player (press Enter to use default: Player 2): ")
-    return white_player if white_player else "Player 1", black_player if black_player else "Player 2"
+    white_player = input(f"Enter the name of the white player (press Enter to use default: {default_white}): ")
+    black_player = input(f"Enter the name of the black player (press Enter to use default: {default_black}): ")
+    return white_player if white_player else default_white, black_player if black_player else default_black
 
 def get_game_result(ludii_content):
     """
@@ -366,7 +364,202 @@ def print_board(board):
         board_str += '\n'
     return board_str
 
-def build_pgn_header(input_file, variant, result):
+def process_files(input_files):
+    print("Debug: Entering process_files")
+    base_output_file = get_output_file(input_files[0])
+    base_name = os.path.splitext(os.path.basename(base_output_file))[0]
+    
+    white_player, black_player = "Player 1", "Player 2"
+    print(f"Debug: Initial player names - White: {white_player}, Black: {black_player}")
+
+    # Determine if we're processing a single file or multiple files
+    is_single_file = len(input_files) == 1
+    
+    for index, input_file in enumerate(input_files, start=1):
+        round_number = 0 if is_single_file else index + 1
+        print(f"Debug: Processing round {round_number}, file: {input_file}")
+        try:
+            with open(input_file, 'r') as file:
+                ludii_content = file.read()
+
+            output_file_name = base_name
+            if round_number > 1:
+                output_file_name += f"-{round_number}"
+            
+            print(f"Debug: Calling get_player_names_gui with White: {white_player}, Black: {black_player}")
+            new_white, new_black = get_player_names_gui(white_player, black_player, round_number)
+            print(f"Debug: Names returned from GUI - White: {new_white}, Black: {new_black}")
+            
+            if new_white != white_player or new_black != black_player:
+                white_player, black_player = new_white, new_black
+                print(f"Debug: Updated player names - White: {white_player}, Black: {black_player}")
+            else:
+                print("Debug: Player names unchanged")
+            
+            if is_single_file or round_number == 1:
+                output_file = base_output_file
+            else:
+                output_file = f"{os.path.dirname(base_output_file)}/{output_file_name}.pgn"
+            print(f"Debug: Output file: {output_file}")
+
+            try:
+                print("Debug: Calling ludii_to_pgn")
+                pgn_output = ludii_to_pgn(ludii_content, input_file, round_number, output_file_name, white_player, black_player)
+                print("Debug: ludii_to_pgn completed")
+                
+                with open(output_file, 'w') as file:
+                    file.write(pgn_output)
+                print(f"Debug: Wrote to file: {output_file}")
+
+                # Verify file contents
+                with open(output_file, 'r') as file:
+                    file_contents = file.read()
+                    print(f"Debug: Contents of {output_file}:\n{file_contents[:500]}...")  # Print first 500 characters
+
+                if DEBUG:
+                    filtered_output_file = f"{output_file_name}_filtered.pgn"
+                    filter_moves(output_file, filtered_output_file)
+                    print(f"Filtered PGN file saved as {filtered_output_file}")
+
+                print(f"Converted {input_file} (Round {round_number}) to {output_file}")
+
+                
+
+
+            except ValueError as ve:
+                print(f"Error processing {input_file}: {str(ve)}")
+
+        except FileNotFoundError:
+            print(f"Error: File {input_file} not found.")
+        except IOError as e:
+            print(f"I/O error during file reading: {e}")
+        except Exception as e:
+            print(f"An unexpected error occurred while processing {input_file}: {str(e)}")
+        
+        print(f"Debug: Swapping player names for next round")
+        white_player, black_player = black_player, white_player
+        print(f"Debug: After swap - White: {white_player}, Black: {black_player}")
+
+    print("Debug: All files processed")
+
+
+def get_player_names_gui(default_white, default_black, round_number):
+    print(f"Debug: Entering get_player_names_gui with defaults - Round: {round_number} White: {default_white}, Black: {default_black}")
+    
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    
+    # Use simpledialog to get input
+    white_player = simpledialog.askstring("White Player", f"{'ROUND ' + str(round_number) + '-> ' if round_number != 0 else ''}Enter name for White player (default: {default_white}):", initialvalue=default_white)    
+    black_player = simpledialog.askstring("Black Player", f"{'ROUND ' + str(round_number) + '-> ' if round_number != 0 else ''}Enter name for Black player (default: {default_black}):", initialvalue=default_black)
+        
+    # If user cancels, use default values
+    white_player = white_player if white_player is not None else default_white
+    black_player = black_player if black_player is not None else default_black
+    
+    print(f"Debug: Final player names - White: {white_player}, Black: {black_player}")
+    
+    return white_player, black_player
+
+def order_files(files):
+    """
+    Lets the user specify the order of the input files.
+    
+    Args:
+        files (list): List of input file paths.
+    
+    Returns:
+        list: Ordered list of input file paths.
+    """
+    if len(files) <= 1:
+        return files
+    
+    print("Please specify the order of the files:")
+    for i, file in enumerate(files):
+        print(f"{i+1}. {os.path.basename(file)}")
+    
+    order = []
+    while len(order) < len(files):
+        try:
+            index = int(input(f"Enter the number for position {len(order)+1}: ")) - 1
+            if 0 <= index < len(files) and index not in order:
+                order.append(index)
+            else:
+                print("Invalid input. Please try again.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+    
+    return [files[i] for i in order]
+
+def order_files_gui(files):
+    """
+    Provides a graphical interface for ordering the input files.
+    
+    Args:
+        files (list): List of input file paths.
+    
+    Returns:
+        list: Ordered list of input file paths.
+    """
+    print("Debug: Entering order_files_gui function")
+    print(f"Debug: Input files: {files}")
+
+    if len(files) <= 1:
+        print("Debug: Less than 2 files, returning original list")
+        return files
+
+    root = tk.Tk()
+    root.title("Order Files")
+
+    listbox = tk.Listbox(root, selectmode=tk.SINGLE)
+    for file in files:
+        listbox.insert(tk.END, os.path.basename(file))
+    listbox.pack(padx=10, pady=10)
+
+    print("Debug: Listbox populated with file basenames")
+
+    def move_up():
+        selected = listbox.curselection()
+        if selected and selected[0] > 0:
+            text = listbox.get(selected[0])
+            listbox.delete(selected[0])
+            listbox.insert(selected[0]-1, text)
+            listbox.selection_set(selected[0]-1)
+
+    def move_down():
+        selected = listbox.curselection()
+        if selected and selected[0] < listbox.size()-1:
+            text = listbox.get(selected[0])
+            listbox.delete(selected[0])
+            listbox.insert(selected[0]+1, text)
+            listbox.selection_set(selected[0]+1)
+
+    def confirm_order():
+        print("Debug: Order confirmed by user")
+        root.quit()
+
+    tk.Button(root, text="Move Up", command=move_up).pack()
+    tk.Button(root, text="Move Down", command=move_down).pack()
+    tk.Button(root, text="Confirm Order", command=confirm_order).pack()
+
+    print("Debug: GUI setup complete, entering mainloop")
+    root.mainloop()
+
+    print("Debug: Mainloop exited")
+
+    # Create a mapping of basenames to full paths
+    basename_to_path = {os.path.basename(f): f for f in files}
+    print(f"Debug: basename_to_path mapping: {basename_to_path}")
+
+    # Use this mapping to get the full paths in the new order
+    ordered_files = [basename_to_path[listbox.get(i)] for i in range(listbox.size())]
+    
+    print(f"Debug: Final ordered files: {ordered_files}")
+
+    root.destroy()
+    return ordered_files
+
+def build_pgn_header(input_file, variant, result, round_number, output_file_name, white_player, black_player):
     """
     Builds the PGN header for the chess game.
     
@@ -374,19 +567,24 @@ def build_pgn_header(input_file, variant, result):
         input_file (str): The path of the input Ludii file.
         variant (str): The chess variant being played.
         result (str): The result of the game.
+        round_number (int): The round number of the game.
+        output_file_name (str): The name of the output file.
+        white_player (str): The name of the white player.
+        black_player (str): The name of the black player.
     
     Returns:
         str: The PGN header as a string.
-    
-    This function creates the standard PGN header, including tags
-    for the event name, site, date, player names, game variant, and result.
     """
-    event_name = get_event_name(input_file)
-    white_player, black_player = get_player_names()
-    
+    print(f"Debug: build_pgn_header called with round: {round_number}, output_file: {output_file_name}, white: {white_player}, black: {black_player}")
+
+    event_name = output_file_name
+    # Remove the round number from the event name if present
+    event_name = re.sub(r'-\d+$', '', event_name) 
+
     pgn = f'[Event "{event_name}"]\n'
     pgn += f'[Site "Ludii"]\n'
     pgn += f'[Date "{get_file_creation_date(input_file)}"]\n'
+    if round_number != 0 : pgn += f'[Round "{round_number}"]\n'
     pgn += f'[White "{white_player}"]\n'
     pgn += f'[Black "{black_player}"]\n'
     pgn += f'[Variant "{variant}"]\n'
@@ -458,27 +656,31 @@ def build_pgn_moves_with_notes(white_moves, black_moves):
         pgn += "\n"
     return pgn
 
-def ludii_to_pgn(ludii_content, input_file):
+def ludii_to_pgn(ludii_content, input_file, round_number, event_name, white_player, black_player):
     """
     Converts Ludii game content to PGN format.
     
     Args:
         ludii_content (str): The full content of the Ludii file.
         input_file (str): The path of the input Ludii file.
+        round_number (int): The round number of the game.
+        event_name (str): The name of the event.
+        white_player (str): The name of the white player.
+        black_player (str): The name of the black player.
     
     Returns:
         str: The game in PGN format.
-    
-    This function determines the chess variant from the Ludii content
-    and calls the appropriate conversion function (either convert_chess
-    or convert_kriegspiel).
     """
+
+    print(f"Debug: ludii_to_pgn called with round: {round_number}, event: {event_name}, white: {white_player}, black: {black_player}")
+
+
     game_variant = get_game_variant(ludii_content)
 
     if game_variant == "game=/lud/board/war/replacement/checkmate/chess/Chess.lud":
-        return convert_chess(ludii_content, input_file)
+        return convert_chess(ludii_content, input_file, round_number, event_name, white_player, black_player)
     elif game_variant == "game=/lud/board/war/replacement/checkmate/chess/Kriegspiel (Chess).lud":
-        return convert_kriegspiel(ludii_content, input_file)
+        return convert_kriegspiel(ludii_content, input_file, round_number, event_name, white_player, black_player)
     else:
         raise ValueError(f"Unsupported game variant: {game_variant}")
 
@@ -962,7 +1164,7 @@ def can_move_to(from_sq, to_sq, piece):
 
     return True  # For pawns or unknown pieces, assume it's possible
 
-def convert_chess(ludii_content, input_file):
+def convert_chess(ludii_content, input_file, round_number, event_name, white_player, black_player):
     """
     Converts a standard chess game from Ludii format to PGN.
     
@@ -1014,7 +1216,7 @@ def convert_chess(ludii_content, input_file):
 
     result = get_game_result(ludii_content)
 
-    pgn = build_pgn_header(input_file, "Chess", result)
+    pgn = build_pgn_header(input_file, "Chess", result, round_number, event_name, white_player, black_player)
     pgn += build_pgn_moves(white_moves, black_moves)
     pgn += result
 
@@ -1025,7 +1227,7 @@ def convert_chess(ludii_content, input_file):
 
     return pgn
 
-def convert_kriegspiel(ludii_content, input_file):
+def convert_kriegspiel(ludii_content, input_file, round_number, event_name, white_player, black_player):
     """
     Converts a Kriegspiel chess game from Ludii format to PGN.
     
@@ -1103,7 +1305,7 @@ def convert_kriegspiel(ludii_content, input_file):
 
     result = get_game_result(ludii_content)
 
-    pgn = build_pgn_header(input_file, "Kriegspiel (chess)", result)
+    pgn = build_pgn_header(input_file, "Kriegspiel (chess)", result, round_number, event_name, white_player, black_player)
     pgn += build_pgn_moves_with_notes(white_moves, black_moves)
     pgn += result
 
@@ -1114,23 +1316,117 @@ def convert_kriegspiel(ludii_content, input_file):
 
     return pgn
 
-if __name__ == "__main__":
-    input_file = get_input_file()
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Convert Ludii trial files to PGN.")
+    parser.add_argument("-f", "--files", nargs='+', help="Paths to the input .trl files")
+    parser.add_argument("-o", "--output", help="Path to the output .pgn file")
+    parser.add_argument("-w", "--white", help="Name of the white player")
+    parser.add_argument("-b", "--black", help="Name of the black player")
+    return parser.parse_args()
+
+def get_input_files_cli():
+    files = []
+    while True:
+        file_path = input("Please enter the path to a .trl file (or press Enter to finish): ")
+        if not file_path:
+            break
+        file_path_with_extension = ensure_file_extension(file_path, '.trl')
+        if os.path.exists(file_path_with_extension):
+            files.append(file_path_with_extension)
+        else:
+            print("Invalid file path. Please try again.")
+    return files
+
+def get_player_names_cli(default_white="Player 1", default_black="Player 2"):
+    white_player = input(f"Enter the name of the white player (default: {default_white}): ")
+    black_player = input(f"Enter the name of the black player (default: {default_black}): ")
+    return white_player if white_player else default_white, black_player if black_player else default_black
+
+def process_files(input_files, output_file, white_player, black_player):
+    print(f"Debug: Entering process_files")
+    output_dir = os.path.dirname(output_file)
+    base_name = os.path.splitext(os.path.basename(output_file))[0]
     
-    if input_file:
-        # DEBUG = True
+    print(f"Debug: Initial player names - White: {white_player}, Black: {black_player}")
 
-        output_file = get_output_file(input_file)
+    is_single_file = len(input_files) == 1
+    
+    for index, input_file in enumerate(input_files, start=1):
+        round_number = 0 if is_single_file else index
+        print(f"Debug: Processing round {round_number}, file: {input_file}")
+        try:
+            with open(input_file, 'r') as file:
+                ludii_content = file.read()
 
-        convert_trl_to_pgn(input_file, output_file)
+            if is_single_file:
+                current_output_file = output_file
+                output_file_name = base_name
+            else:
+                output_file_name = f"{base_name}-{round_number}"
+                current_output_file = os.path.join(output_dir, f"{output_file_name}.pgn")
+            
+            print(f"Debug: Output file: {current_output_file}")
+
+            try:
+                print("Debug: Calling ludii_to_pgn")
+                pgn_output = ludii_to_pgn(ludii_content, input_file, round_number, output_file_name, white_player, black_player)
+                print("Debug: ludii_to_pgn completed")
+                
+                mode = 'w' if index == 1 else 'a'
+                with open(current_output_file, mode) as file:
+                    # if index > 1:
+                    #     file.write("\n\n")  # Add separation between games
+                    file.write(pgn_output)
+                print(f"Debug: Wrote to file: {current_output_file}")
+
+                print(f"Converted {input_file} (Round {round_number}) to {current_output_file}")
+
+            except ValueError as ve:
+                print(f"Error processing {input_file}: {str(ve)}")
+
+        except FileNotFoundError:
+            print(f"Error: File {input_file} not found.")
+        except IOError as e:
+            print(f"I/O error during file reading or writing: {e}")
+        except Exception as e:
+            print(f"An unexpected error occurred while processing {input_file}: {str(e)}")
         
-        print(f"PGN file saved as {output_file}")
+        print(f"Debug: Swapping player names for next round")
+        white_player, black_player = black_player, white_player
+        print(f"Debug: After swap - White: {white_player}, Black: {black_player}")
 
-        if DEBUG:
-            base_name = os.path.splitext(output_file)[0]
-            filtered_output_file = f"{base_name}_filtered.pgn"
-            filter_moves(output_file, filtered_output_file)
-            print(f"Filtered PGN file saved as {filtered_output_file}")
+    print("Debug: All files processed")
 
+def main():
+    args = parse_arguments()
+
+    if args.files:
+        input_files = [ensure_file_extension(file, '.trl') for file in args.files]
     else:
-        print("No input file selected. Exiting.")
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            input_files = list(filedialog.askopenfilenames(filetypes=[("Ludii Trial files", "*.trl")]))
+        except:
+            print("GUI not available. Using command line input.")
+            input_files = get_input_files_cli()
+
+    if not input_files:
+        print("No input files selected. Exiting.")
+        return
+
+    output_file = args.output if args.output else get_output_file(input_files[0])
+    white_player = args.white
+    black_player = args.black
+
+    if not (white_player and black_player):
+        try:
+            white_player, black_player = get_player_names_gui("Player 1", "Player 2")
+        except:
+            print("GUI not available. Using command line input for player names.")
+            white_player, black_player = get_player_names_cli()
+
+    process_files(input_files, output_file, white_player, black_player)
+
+if __name__ == "__main__":
+    main()
