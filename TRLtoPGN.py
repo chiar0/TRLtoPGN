@@ -1421,7 +1421,7 @@ def main():
 
     if not (white_player and black_player):
         try:
-            white_player, black_player = get_player_names_gui("Player 1", "Player 2")
+            white_player, black_player = get_player_names("Player 1", "Player 2")
         except:
             print("GUI not available. Using command line input for player names.")
             white_player, black_player = get_player_names_cli()
