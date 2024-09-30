@@ -88,13 +88,13 @@ def get_input_files():
     Returns:
         list: Paths to the input .trl files.
     """
-    print("Debug: Entering get_input_files function")
+    ##print("Debug: Entering get_input_files function")
     parser = argparse.ArgumentParser(description="Convert Ludii trial files to PGN.")
     parser.add_argument("-f", "--files", nargs='+', help="Paths to the input .trl files")
     args = parser.parse_args()
 
     if args.files:
-        print(f"Debug: Files provided via command line: {args.files}")
+        #print(f"Debug: Files provided via command line: {args.files}")
         return [ensure_file_extension(file, '.trl') for file in args.files]
     
     try:
@@ -102,10 +102,10 @@ def get_input_files():
         root.withdraw()
         file_paths = filedialog.askopenfilenames(filetypes=[("Ludii Trial files", "*.trl")])
         if file_paths:
-            print(f"Debug: Files selected via GUI: {file_paths}")
+            #print(f"Debug: Files selected via GUI: {file_paths}")
             return list(file_paths)
     except Exception as e:
-        print(f"Debug: Error in file dialog: {e}")
+        #print(f"Debug: Error in file dialog: {e}")
     
     files = []
     while True:
@@ -116,9 +116,9 @@ def get_input_files():
         if os.path.exists(file_path_with_extension):
             files.append(file_path_with_extension)
         else:
-            print("Invalid file path. Please try again.")
+            #print("Invalid file path. Please try again.")
     
-    print(f"Debug: Files entered manually: {files}")
+    #print(f"Debug: Files entered manually: {files}")
     return files
 
 def get_output_file(input_file):
@@ -365,19 +365,19 @@ def print_board(board):
     return board_str
 
 def process_files(input_files):
-    print("Debug: Entering process_files")
+    ##print("Debug: Entering process_files")
     base_output_file = get_output_file(input_files[0])
     base_name = os.path.splitext(os.path.basename(base_output_file))[0]
     
     white_player, black_player = "Player 1", "Player 2"
-    print(f"Debug: Initial player names - White: {white_player}, Black: {black_player}")
+    #print(f"Debug: Initial player names - White: {white_player}, Black: {black_player}")
 
     # Determine if we're processing a single file or multiple files
     is_single_file = len(input_files) == 1
     
     for index, input_file in enumerate(input_files, start=1):
         round_number = 0 if is_single_file else index + 1
-        print(f"Debug: Processing round {round_number}, file: {input_file}")
+        #print(f"Debug: Processing round {round_number}, file: {input_file}")
         try:
             with open(input_file, 'r') as file:
                 ludii_content = file.read()
@@ -386,42 +386,42 @@ def process_files(input_files):
             if round_number > 1:
                 output_file_name += f"-{round_number}"
             
-            print(f"Debug: Calling get_player_names_gui with White: {white_player}, Black: {black_player}")
+            #print(f"Debug: Calling get_player_names_gui with White: {white_player}, Black: {black_player}")
             new_white, new_black = get_player_names_gui(white_player, black_player, round_number)
-            print(f"Debug: Names returned from GUI - White: {new_white}, Black: {new_black}")
+            #print(f"Debug: Names returned from GUI - White: {new_white}, Black: {new_black}")
             
             if new_white != white_player or new_black != black_player:
                 white_player, black_player = new_white, new_black
-                print(f"Debug: Updated player names - White: {white_player}, Black: {black_player}")
+                #print(f"Debug: Updated player names - White: {white_player}, Black: {black_player}")
             else:
-                print("Debug: Player names unchanged")
+                ##print("Debug: Player names unchanged")
             
             if is_single_file or round_number == 1:
                 output_file = base_output_file
             else:
                 output_file = f"{os.path.dirname(base_output_file)}/{output_file_name}.pgn"
-            print(f"Debug: Output file: {output_file}")
+            #print(f"Debug: Output file: {output_file}")
 
             try:
-                print("Debug: Calling ludii_to_pgn")
+                ##print("Debug: Calling ludii_to_pgn")
                 pgn_output = ludii_to_pgn(ludii_content, input_file, round_number, output_file_name, white_player, black_player)
-                print("Debug: ludii_to_pgn completed")
+                ##print("Debug: ludii_to_pgn completed")
                 
                 with open(output_file, 'w') as file:
                     file.write(pgn_output)
-                print(f"Debug: Wrote to file: {output_file}")
+                #print(f"Debug: Wrote to file: {output_file}")
 
                 # Verify file contents
                 with open(output_file, 'r') as file:
                     file_contents = file.read()
-                    print(f"Debug: Contents of {output_file}:\n{file_contents[:500]}...")  # Print first 500 characters
+                    #print(f"Debug: Contents of {output_file}:\n{file_contents[:500]}...")  # Print first 500 characters
 
                 if DEBUG:
                     filtered_output_file = f"{output_file_name}_filtered.pgn"
                     filter_moves(output_file, filtered_output_file)
-                    print(f"Filtered PGN file saved as {filtered_output_file}")
+                    #print(f"Filtered PGN file saved as {filtered_output_file}")
 
-                print(f"Converted {input_file} (Round {round_number}) to {output_file}")
+                #print(f"Converted {input_file} (Round {round_number}) to {output_file}")
 
                 
 
@@ -436,15 +436,15 @@ def process_files(input_files):
         except Exception as e:
             print(f"An unexpected error occurred while processing {input_file}: {str(e)}")
         
-        print(f"Debug: Swapping player names for next round")
+        #print(f"Debug: Swapping player names for next round")
         white_player, black_player = black_player, white_player
-        print(f"Debug: After swap - White: {white_player}, Black: {black_player}")
+        #print(f"Debug: After swap - White: {white_player}, Black: {black_player}")
 
-    print("Debug: All files processed")
+    ##print("Debug: All files processed")
 
 
 def get_player_names_gui(default_white, default_black, round_number):
-    print(f"Debug: Entering get_player_names_gui with defaults - Round: {round_number} White: {default_white}, Black: {default_black}")
+    #print(f"Debug: Entering get_player_names_gui with defaults - Round: {round_number} White: {default_white}, Black: {default_black}")
     
     root = tk.Tk()
     root.withdraw()  # Hide the main window
@@ -457,7 +457,7 @@ def get_player_names_gui(default_white, default_black, round_number):
     white_player = white_player if white_player is not None else default_white
     black_player = black_player if black_player is not None else default_black
     
-    print(f"Debug: Final player names - White: {white_player}, Black: {black_player}")
+    #print(f"Debug: Final player names - White: {white_player}, Black: {black_player}")
     
     return white_player, black_player
 
@@ -501,11 +501,11 @@ def order_files_gui(files):
     Returns:
         list: Ordered list of input file paths.
     """
-    print("Debug: Entering order_files_gui function")
+    #print("Debug: Entering order_files_gui function")
     print(f"Debug: Input files: {files}")
 
     if len(files) <= 1:
-        print("Debug: Less than 2 files, returning original list")
+        #print("Debug: Less than 2 files, returning original list")
         return files
 
     root = tk.Tk()
@@ -516,7 +516,7 @@ def order_files_gui(files):
         listbox.insert(tk.END, os.path.basename(file))
     listbox.pack(padx=10, pady=10)
 
-    print("Debug: Listbox populated with file basenames")
+    #print("Debug: Listbox populated with file basenames")
 
     def move_up():
         selected = listbox.curselection()
@@ -535,17 +535,17 @@ def order_files_gui(files):
             listbox.selection_set(selected[0]+1)
 
     def confirm_order():
-        print("Debug: Order confirmed by user")
+        #print("Debug: Order confirmed by user")
         root.quit()
 
     tk.Button(root, text="Move Up", command=move_up).pack()
     tk.Button(root, text="Move Down", command=move_down).pack()
     tk.Button(root, text="Confirm Order", command=confirm_order).pack()
 
-    print("Debug: GUI setup complete, entering mainloop")
+    #print("Debug: GUI setup complete, entering mainloop")
     root.mainloop()
 
-    print("Debug: Mainloop exited")
+    #print("Debug: Mainloop exited")
 
     # Create a mapping of basenames to full paths
     basename_to_path = {os.path.basename(f): f for f in files}
@@ -1368,9 +1368,9 @@ def process_files(input_files, output_file, white_player, black_player):
             print(f"Debug: Output file: {current_output_file}")
 
             try:
-                print("Debug: Calling ludii_to_pgn")
+                #print("Debug: Calling ludii_to_pgn")
                 pgn_output = ludii_to_pgn(ludii_content, input_file, round_number, output_file_name, white_player, black_player)
-                print("Debug: ludii_to_pgn completed")
+                #print("Debug: ludii_to_pgn completed")
                 
                 mode = 'w' if index == 1 else 'a'
                 with open(current_output_file, mode) as file:
@@ -1395,7 +1395,7 @@ def process_files(input_files, output_file, white_player, black_player):
         white_player, black_player = black_player, white_player
         print(f"Debug: After swap - White: {white_player}, Black: {black_player}")
 
-    print("Debug: All files processed")
+    #print("Debug: All files processed")
 
 def main():
     args = parse_arguments()
