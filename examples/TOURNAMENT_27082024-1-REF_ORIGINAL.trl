@@ -1,7 +1,7 @@
 game=/lud/board/war/replacement/checkmate/chess/Kriegspiel (Chess).lud
 START GAME OPTIONS
 END GAME OPTIONS
-RNG internal state=-7,-22,-47,-115,38,89,-71,95
+RNG internal state=1,2,3,4,5,6,7,8
 Move=[Move:mover=0,from=8,to=8,actions=[Add:type=Cell,to=8,what=1]]
 Move=[Move:mover=0,from=9,to=9,actions=[Add:type=Cell,to=9,what=1]]
 Move=[Move:mover=0,from=10,to=10,actions=[Add:type=Cell,to=10,what=1]]
