@@ -123,10 +123,6 @@ python3 tools/analyze_differences.py file1.trl file2.trl
 
 Contributions are welcome! Open an issue or submit a pull request.
 
-## 📄 License
-
-GPL-3.0 – see the [LICENSE](LICENSE) file for details.
-
 ---
 
 **Made with ❤️ for chess and AI enthusiasts**
