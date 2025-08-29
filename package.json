@@ -1,0 +1,57 @@
+{
+  "name": "trl-to-pgn",
+  "version": "2.0.0",
+  "description": "Comprehensive toolkit for converting between Ludii trial files (.trl) and Portable Game Notation (PGN) files for chess games",
+  "main": "pgn-to-trl.ts",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "pgn-to-trl": "./pgn-to-trl.sh",
+    "trl-to-pgn": "./trl-to-pgn.sh",
+    "pgn-to-trl-direct": "node --loader ts-node/esm pgn-to-trl.ts",
+    "trl-to-pgn-direct": "node --loader ts-node/esm trl-to-pgn.ts",
+    "test": "npm run test:python && npm run test:semantic",
+    "test:python": "python3 TRLtoPGN.py -f examples/TOURNAMENT_27082024-1-REF_ORIGINAL.trl -w 'Player 1' -b 'Player 2' -o test_output.pgn",
+    "test:semantic": "python3 tools/semantic_compare.py examples/TOURNAMENT_27082024-1-REF_ORIGINAL.trl examples/TOURNAMENT_27082024-2-REF_ORIGINAL.trl test_output.csv",
+    "test:typescript": "./pgn-to-trl.sh -f examples/TOURNAMENT_27082024-1.pgn",
+    "build": "tsc",
+    "clean": "rm -rf dist/ *.csv node_modules/.cache temp/ examples/*.trl",
+    "semantic-compare": "python3 tools/semantic_compare.py",
+    "usage": "./USAGE.sh"
+  },
+  "keywords": [
+    "chess",
+    "pgn",
+    "trl",
+    "ludii",
+    "kriegspiel",
+    "game-conversion",
+    "chess-notation",
+    "typescript",
+    "python"
+  ],
+  "author": "chiar0",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chiar0/TRLtoPGN.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chiar0/TRLtoPGN/issues"
+  },
+  "homepage": "https://github.com/chiar0/TRLtoPGN#readme",
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/yargs": "^17.0.33",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  },
+  "ts-node": {
+    "esm": true
+  },
+  "dependencies": {
+    "yargs": "^17.7.2"
+  }
+}

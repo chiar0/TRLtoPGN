@@ -1,110 +1,132 @@
-# TRLtoPGN
+# TRLtoPGN 🏆
 
-This Python script converts Ludii trial files (.trl) to Portable Game Notation (PGN) files for chess games. It supports both standard chess and Kriegspiel variants, and can handle multiple input files for processing games in rounds.
+A comprehensive toolkit for bi-directional conversion between Ludii trial files (.trl) and Portable Game Notation (PGN) files for chess games, with specialized support for Kriegspiel.
 
-## Features
+## 🎯 Features
 
-- Converts Ludii trial files to PGN format
-- Supports standard chess and Kriegspiel variants
-- Handles multiple input files for processing games in rounds
-- Allows custom event names and player names
-- Provides both graphical and command-line interfaces
-- Includes debug mode for detailed conversion information
-- Generates filtered output for easier debugging
-- Automatically swaps player names between rounds
+- **Bi-directional conversion** between TRL and PGN formats
+- **Multi-variant support**: Standard Chess and Kriegspiel
+- **Multi-file processing** with automatic round handling and player name swapping
 
-## Requirements
+## 🚀 Quick Start
 
-- Python 3.6 or higher
-- tkinter (usually comes pre-installed with Python)
+### Prerequisites
 
-## Installation
+**For TypeScript version (recommended for performance):**
+- Node.js 16+ 
+- TypeScript 4.5+
+- ts-node for direct execution
 
-1. Install Python:
-   * Windows:
-     a. Go to the official Python website: https://www.python.org/downloads/windows/
-     b. Download the latest Python 3 version (3.6 or higher)
-     c. Run the installer and make sure to check "Add Python to PATH" during installation
-   * macOS:
-     ```
-     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-     brew install python
-     ```
-   * Linux:
-     * Ubuntu or Debian:
-       ```
-       sudo apt-get update && sudo apt-get install python3 python3-pip
-       ```
-     * Fedora:
-       ```
-       sudo dnf install python3 python3-pip
-       ```
-     * Arch Linux:
-       ```
-       sudo pacman -S python python-pip
-       ```
+**For Python version (GUI support available):**
+- Python 3.7+ (use `python3` command)
+- tkinter (usually pre-installed on most systems)
 
-2. Clone this repository or download the script file:
-   ```
-   git clone https://github.com/chiar0/TRLtoPGN.git
-   cd TRLtoPGN
-   ```
+### Installation
 
-3. Install required packages:
-   ```
-   pip install tkinter
-   ```
+```bash
+# Clone the repository
+git clone https://github.com/chiar0/TRLtoPGN.git
+cd TRLtoPGN
 
-   Note: tkinter usually comes pre-installed with Python. If you're using Linux and tkinter is not available, you can install it using your distribution's package manager. For example, on Ubuntu or Debian:
-   ```
-   sudo apt-get install python3-tk
-   ```
+# Setup TypeScript environment (recommended)
+npm install
 
-## Usage
-
-You can run the script in several ways:
-
-### Graphical Interface
-
-Simply run the script without any arguments:
-
-```
-python TRLtoPGN.py
+# Python setup (no additional dependencies required)
+# Built-in libraries are sufficient
 ```
 
-This will open file dialogs for selecting the input files, output file, and entering player names.
+## 📖 Usage Guide
 
-### Command Line Interface
+### TypeScript Version (Recommended)
 
-You can also use command-line arguments:
+#### PGN to TRL Conversion
+```bash
+# Primary method with ts-node loader:
+node --loader ts-node/esm pgn-to-trl.ts -f examples/TOURNAMENT_27082024-2.pgn
 
+# Expected output:
+# (node:646398) ExperimentalWarning: `--experimental-loader` may be removed in the future...
+# Converting examples/TOURNAMENT_27082024-2.pgn...
+# Successfully converted. TRL file saved as examples/TOURNAMENT_27082024-2.trl
+
+# Alternative method without warnings (Node.js 18.19+):
+node --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("ts-node/esm", pathToFileURL("./"));' pgn-to-trl.ts -f examples/TOURNAMENT_27082024-2.pgn
+
+# Using shell wrapper:
+./pgn-to-trl.sh -f examples/TOURNAMENT_27082024-2.pgn
 ```
-python TRLtoPGN.py -f input_file1.trl input_file2.trl -o output_file.pgn -w "White Player" -b "Black Player"
+
+#### TRL to PGN Conversion
+```bash
+# Direct TypeScript execution:
+node --loader ts-node/esm trl-to-pgn.ts -f examples/TOURNAMENT_27082024-1.trl --white "Magnus Carlsen" --black "Hikaru Nakamura"
+
+# Using npm scripts:
+npm run trl-to-pgn -- -f examples/TOURNAMENT_27082024-1.trl --white "Player1" --black "Player2"
+
+# Using shell wrapper:
+./trl-to-pgn.sh -f examples/TOURNAMENT_27082024-1.trl --white "Player 1" --black "Player 2"
 ```
 
-- `-f` or `--files`: Paths to one or more input .trl files
-- `-o` or `--output`: Path to the output .pgn file
-- `-w` or `--white`: Name of the white player
-- `-b` or `--black`: Name of the black player
+**Note**: The experimental loader warning is harmless and can be safely ignored. Shell wrapper scripts provide automatic fallback compilation when direct execution fails.
 
-If you don't provide these arguments, the script will prompt you to enter the information.
+### Python Version
 
-### Multiple File Processing
+#### GUI Mode (User-Friendly)
+```bash
+python3 TRLtoPGN.py
+# Opens file selection dialogs and input prompts for easy operation
+```
 
-When processing multiple input files, the script will:
-1. Convert the first file to `output_file-1.pgn`
-2. Convert subsequent files to `output_file-2.pgn`, `output_file-3.pgn`, etc.
-3. All output files will be in the same directory as the specified output file
-4. Player names will be swapped between rounds automatically
+#### Command Line Interface
+```bash
+# Single file conversion:
+python3 TRLtoPGN.py -f examples/TOURNAMENT_27082024-1.trl -o output.pgn -w "White Player" -b "Black Player"
 
-## Output
+# Multi-file tournament processing:
+python3 TRLtoPGN.py -f round1.trl round2.trl round3.trl -w "Player A" -b "Player B"
+# Automatically handles round numbering and player name swapping between rounds
+```
 
-The script generates PGN files for each input file processed. If DEBUG mode is enabled, it will include additional debug information in the console output.
+### Analysis Tools
 
-## Debug Mode
+#### Semantic Comparison
+```bash
+# Compare TRL files for semantic accuracy:
+python3 tools/semantic_compare.py new_file.trl reference_file.trl comparison_report.csv
+```
 
-Set the `DEBUG` variable to `True` in the script to enable detailed logging. This will include a debug log in the console output and may generate additional debug files for easier debugging.
+#### Pattern Analysis
+```bash
+# Analyze move patterns and game structure:
+python3 tools/analyze_patterns.py examples/TOURNAMENT_27082024-1.trl
 
-## Contributing
+# Compare differences between files:
+python3 tools/analyze_differences.py file1.trl file2.trl
+```
 
-Contributions, issues, and feature requests are welcome. Feel free to check the issues page if you want to contribute.
+## 🎮 Supported Chess Variants
+
+### Standard Chess
+- Full support for all standard chess rules
+- Castling, en passant, promotion
+- Check and checkmate detection
+- Standard algebraic notation (SAN)
+
+### Kriegspiel (Invisible Chess)
+- **Partial information** gameplay support
+- **Umpire messages** for illegal moves and captures
+- **Try counters** for pawn capture attempts
+- **Hidden piece positions** and limited information rules
+
+## 🤝 Contributing
+
+Contributions are welcome! Open an issue or submit a pull request.
+
+## 📄 License
+
+GPL-3.0 – see the [LICENSE](LICENSE) file for details.
+
+---
+
+**Made with ❤️ for chess and AI enthusiasts**

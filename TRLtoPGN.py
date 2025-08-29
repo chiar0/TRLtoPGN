@@ -106,6 +106,7 @@ def get_input_files():
             return list(file_paths)
     except Exception as e:
         #print(f"Debug: Error in file dialog: {e}")
+        pass
     
     files = []
     while True:
@@ -116,7 +117,7 @@ def get_input_files():
         if os.path.exists(file_path_with_extension):
             files.append(file_path_with_extension)
         else:
-            #print("Invalid file path. Please try again.")
+            pass  # Invalid file path, continue loop
     
     #print(f"Debug: Files entered manually: {files}")
     return files
@@ -394,7 +395,7 @@ def process_files(input_files):
                 white_player, black_player = new_white, new_black
                 #print(f"Debug: Updated player names - White: {white_player}, Black: {black_player}")
             else:
-                ##print("Debug: Player names unchanged")
+                pass  # Player names unchanged
             
             if is_single_file or round_number == 1:
                 output_file = base_output_file
@@ -502,7 +503,7 @@ def order_files_gui(files):
         list: Ordered list of input file paths.
     """
     #print("Debug: Entering order_files_gui function")
-    print(f"Debug: Input files: {files}")
+    debug_print(f"Input files: {files}")
 
     if len(files) <= 1:
         #print("Debug: Less than 2 files, returning original list")
@@ -549,12 +550,12 @@ def order_files_gui(files):
 
     # Create a mapping of basenames to full paths
     basename_to_path = {os.path.basename(f): f for f in files}
-    print(f"Debug: basename_to_path mapping: {basename_to_path}")
+    debug_print(f"basename_to_path mapping: {basename_to_path}")
 
     # Use this mapping to get the full paths in the new order
     ordered_files = [basename_to_path[listbox.get(i)] for i in range(listbox.size())]
     
-    print(f"Debug: Final ordered files: {ordered_files}")
+    debug_print(f"Final ordered files: {ordered_files}")
 
     root.destroy()
     return ordered_files
@@ -575,7 +576,7 @@ def build_pgn_header(input_file, variant, result, round_number, output_file_name
     Returns:
         str: The PGN header as a string.
     """
-    print(f"Debug: build_pgn_header called with round: {round_number}, output_file: {output_file_name}, white: {white_player}, black: {black_player}")
+    debug_print(f"build_pgn_header called with round: {round_number}, output_file: {output_file_name}, white: {white_player}, black: {black_player}")
 
     event_name = output_file_name
     # Remove the round number from the event name if present
@@ -672,7 +673,7 @@ def ludii_to_pgn(ludii_content, input_file, round_number, event_name, white_play
         str: The game in PGN format.
     """
 
-    print(f"Debug: ludii_to_pgn called with round: {round_number}, event: {event_name}, white: {white_player}, black: {black_player}")
+    debug_print(f"ludii_to_pgn called with round: {round_number}, event: {event_name}, white: {white_player}, black: {black_player}")
 
 
     game_variant = get_game_variant(ludii_content)
@@ -1343,17 +1344,17 @@ def get_player_names_cli(default_white="Player 1", default_black="Player 2"):
     return white_player if white_player else default_white, black_player if black_player else default_black
 
 def process_files(input_files, output_file, white_player, black_player):
-    print(f"Debug: Entering process_files")
+    debug_print(f"Entering process_files")
     output_dir = os.path.dirname(output_file)
     base_name = os.path.splitext(os.path.basename(output_file))[0]
     
-    print(f"Debug: Initial player names - White: {white_player}, Black: {black_player}")
+    debug_print(f"Initial player names - White: {white_player}, Black: {black_player}")
 
     is_single_file = len(input_files) == 1
     
     for index, input_file in enumerate(input_files, start=1):
         round_number = 0 if is_single_file else index
-        print(f"Debug: Processing round {round_number}, file: {input_file}")
+        debug_print(f"Processing round {round_number}, file: {input_file}")
         try:
             with open(input_file, 'r') as file:
                 ludii_content = file.read()
@@ -1365,7 +1366,7 @@ def process_files(input_files, output_file, white_player, black_player):
                 output_file_name = f"{base_name}-{round_number}"
                 current_output_file = os.path.join(output_dir, f"{output_file_name}.pgn")
             
-            print(f"Debug: Output file: {current_output_file}")
+            debug_print(f"Output file: {current_output_file}")
 
             try:
                 #print("Debug: Calling ludii_to_pgn")
@@ -1377,7 +1378,7 @@ def process_files(input_files, output_file, white_player, black_player):
                     # if index > 1:
                     #     file.write("\n\n")  # Add separation between games
                     file.write(pgn_output)
-                print(f"Debug: Wrote to file: {current_output_file}")
+                debug_print(f"Wrote to file: {current_output_file}")
 
                 print(f"Converted {input_file} (Round {round_number}) to {current_output_file}")
 
@@ -1391,9 +1392,9 @@ def process_files(input_files, output_file, white_player, black_player):
         except Exception as e:
             print(f"An unexpected error occurred while processing {input_file}: {str(e)}")
         
-        print(f"Debug: Swapping player names for next round")
+        debug_print(f"Swapping player names for next round")
         white_player, black_player = black_player, white_player
-        print(f"Debug: After swap - White: {white_player}, Black: {black_player}")
+        debug_print(f"After swap - White: {white_player}, Black: {black_player}")
 
     #print("Debug: All files processed")
 
