@@ -36,13 +36,25 @@ pip-delete-this-directory.txt
 
 # Analysis reports
 semantic_report*.csv
+comparison_report*.csv
+differences_summary.txt
 *_filtered.pgn
+*_nohdr.pgn
+ref_*.pgn
+orig_setscores.txt
+ref_setscores.txt
 debug_*.txt
+debug_output*.txt
 
 # Test outputs
 test_output/
 *.test.trl
 *.test.pgn
+test_*.trl
+test_*.pgn
+
+# Example scratch files
+examples/* copy*.pgn
 
 # Log files
 *.log

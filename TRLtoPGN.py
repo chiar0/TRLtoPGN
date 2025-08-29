@@ -845,8 +845,7 @@ def parse_ludii_move(move_str):
     
     This function extracts all relevant information from a Ludii move string,
     including the moving player, start and end squares, whether it's a capture,
-    any promotions, and additional notes. It also handles illegal moves and
-    groups notes by player.
+    any promotions, additional notes, and SetScore actions.
     """
     debug_print(f"Debugging parse_ludii_move. Input: {move_str}")
 
@@ -876,6 +875,20 @@ def parse_ludii_move(move_str):
         else:
             combined_notes.append((message, f"player {players.pop()}"))
 
+    # Extract SetScore actions
+    setscore_actions = []
+    setscore_matches = re.findall(r'SetScore:player=(\d+),score=(\d+)(?:,add=(true|false))?', move_str)
+    for match in setscore_matches:
+        player, score, add = match
+        # If add parameter is not present, default to False (set score rather than add)
+        if add == '':
+            add = 'false'
+        setscore_actions.append({
+            'player': int(player),
+            'score': int(score),
+            'add': add.lower() == 'true' if add else False
+        })
+
     if mover_match and from_match and to_match:
         player = int(mover_match.group(1))
         from_coord = int(from_match.group(1))
@@ -890,8 +903,8 @@ def parse_ludii_move(move_str):
             if promotion_match:
                 promotion = int(promotion_match.group(1))
 
-        debug_print(f"Move parsed: player={player}, from={from_sq}, to={to_sq}, capture={is_capture}, promotion={promotion}, notes={combined_notes}")
-        return player, from_sq, to_sq, is_capture, promotion, combined_notes
+        debug_print(f"Move parsed: player={player}, from={from_sq}, to={to_sq}, capture={is_capture}, promotion={promotion}, notes={combined_notes}, setscore={setscore_actions}")
+        return player, from_sq, to_sq, is_capture, promotion, combined_notes, setscore_actions
 
     debug_print("Move parsing failed")
     return None
@@ -930,92 +943,31 @@ def parse_illegal_move(move_str, board):
     debug_print(f"Failed to parse illegal move: {move_str}")
     return None
 
+"""
+COMMENTED-OUT: Pawn try generator symmetric to Ludii's CountTries.
+Kept for reference only; do not use for computing P in PGN.
+P is derived strictly from TRL SetScore actions (add=true) on the same move.
+
 def is_legal_pawn_capture(from_sq, to_sq, player):
-    """
-    Checks if a pawn capture is legal.
-    
-    Args:
-        from_sq (str): Starting square in algebraic notation.
-        to_sq (str): Ending square in algebraic notation.
-        player (int): Player making the move (1 for white, 2 for black).
-    
-    Returns:
-        bool: True if the pawn capture is legal, False otherwise.
-    
-    This function checks if the pawn capture follows the correct diagonal
-    movement pattern for the given player.
-    """
     file_diff = abs(ord(from_sq[0]) - ord(to_sq[0]))
     rank_diff = int(to_sq[1]) - int(from_sq[1])
-    
     if player == 1:  # White
         return file_diff == 1 and rank_diff == 1
     else:  # Black
         return file_diff == 1 and rank_diff == -1
 
 def calculate_pawn_tries(board, player, from_sq, to_sq):
-    """
-    Calculates the number of possible pawn captures.
-    
-    Args:
-        board (dict): Dictionary representing the current chess board.
-        player (int): Player making the move (1 for white, 2 for black).
-        from_sq (str): Starting square of the last move in algebraic notation.
-        to_sq (str): Ending square of the last move in algebraic notation.
-    
-    Returns:
-        tuple: A tuple containing the number of pawn capture attempts and
-               a list of the possible capture moves.
-    
-    This function calculates how many pawns of the opposite color can
-    potentially capture on the square where a piece just moved. It also
-    checks for en passant possibilities.
-    """
-    debug_print(f"calculate_pawn_tries called with:")
-    debug_print(f"  board: {board} //{{")
-    debug_print(f"  player: {player}")
-    debug_print(f"  from_sq: {from_sq}, to_sq: {to_sq}")
-
+    # This mirrors the idea of counting only legal pawn captures
+    # reachable after the opponent's last move, including en passant.
     tries = 0
     try_moves = []
-
-    # Check for en passant possibility
-    if board.get(to_sq) in [1, 2]:  # If the moved piece is a pawn
-        if abs(int(to_sq[1]) - int(from_sq[1])) == 2:  # If it's a double step
-            en_passant_rank = int(from_sq[1]) + (1 if player == 2 else -1)
-            en_passant_square = to_sq[0] + str(en_passant_rank)
-            adjacent_files = [chr(ord(to_sq[0]) - 1), chr(ord(to_sq[0]) + 1)]
-            
-            for adj_file in adjacent_files:
-                pawn_square = adj_file + str(en_passant_rank)
-                if pawn_square in board and board[pawn_square] == player:
-                    tries += 1
-                    try_moves.append(f"{pawn_square}-{en_passant_square} (en passant)")
-
-    # Check for regular pawn captures
-    for square, piece in board.items():
-        if piece == player:
-            file, rank = square[0], int(square[1])
-            capture_squares = []
-
-            if player == 1:  # White
-                capture_squares = [chr(ord(file) - 1) + str(rank + 1), chr(ord(file) + 1) + str(rank + 1)]
-            else:  # Black
-                capture_squares = [chr(ord(file) - 1) + str(rank - 1), chr(ord(file) + 1) + str(rank - 1)]
-
-            for cap_square in capture_squares:
-                if cap_square in board and board[cap_square] != player and board[cap_square] % 2 != player % 2:
-                    if is_legal_pawn_capture(square, cap_square, player):
-                        tries += 1
-                        try_moves.append(f"{square}-{cap_square}")
-
-    debug_print(f"Pawn tries: {tries}")
-    debug_print(f"Try moves: {try_moves}")
+    # ... implement symmetric logic here if ever needed ...
     return tries, try_moves
+"""
 
-def generate_pgn_move(board, from_sq, to_sq, is_capture, promotion, notes, player, illegal_moves):
+def generate_pgn_move_with_tokens(board, from_sq, to_sq, is_capture, promotion, notes, player, illegal_moves, setscore_actions):
     """
-    Generates a move in PGN (Portable Game Notation) format.
+    Generates a move in PGN (Portable Game Notation) format with accumulated tries.
     
     Args:
         board (dict): Dictionary representing the current chess board.
@@ -1026,13 +978,13 @@ def generate_pgn_move(board, from_sq, to_sq, is_capture, promotion, notes, playe
         notes (list): List of tuples containing additional notes about the move.
         player (int): Player making the move (1 for white, 2 for black).
         illegal_moves (list): List of illegal moves attempted before this move.
+        accumulated_tries (int): Number of accumulated tries for the current player.
     
     Returns:
         tuple: A tuple containing the PGN move string and the updated board.
     
     This function generates a PGN representation of a chess move, including
-    additional information like captures, promotions, checks, and illegal move attempts.
-    It also updates the board state and calculates potential pawn captures.
+    additional information like captures, promotions, checks, and accumulated tries.
     """
     piece = board.get(from_sq, 1)
     piece_symbol = PIECE_MAP.get(piece, '')
@@ -1041,35 +993,36 @@ def generate_pgn_move(board, from_sq, to_sq, is_capture, promotion, notes, playe
 
     new_board = update_board(board.copy(), from_sq, to_sq, promotion)
 
-    umpire_info = []
-    
-    if is_capture:
-        umpire_info.append(f"X{to_sq.lower()}")
+    tokens = []
 
+    # X: capture square
+    if is_capture:
+        tokens.append(f"X{to_sq.lower()}")
+
+    # P: sum of SetScore add=true for opponent on this move
+    opponent = 2 if player == 1 else 1
+    p_sum = sum(a['score'] for a in setscore_actions if a.get('add') and a.get('player') == opponent)
+    debug_print(f"P-debug: mover={player} addSum={p_sum} actions={setscore_actions}")
+    if p_sum > 0:
+        tokens.append(f"P{p_sum}")
+
+    # C: checks from notes
     is_check = any("check" in note.lower() for note, _ in notes)
     if is_check:
         check_types = [note.split()[0].lower() for note, _ in notes if "check" in note.lower()]
         check_str = "C" + "".join(check_type[0].upper() for check_type in check_types)
-        umpire_info.append(check_str)
+        tokens.append(check_str)
+
+    # Build comment with colon rules
+    if tokens or illegal_moves:
+        if tokens and illegal_moves:
+            comment = "{" + ",".join(tokens) + ":" + ",".join(illegal_moves) + "}"
+        elif tokens:
+            comment = "{" + ",".join(tokens) + ":}"
+        else:
+            comment = "{:" + ",".join(illegal_moves) + "}"
     else:
-        # Calculate pawn tries only if the move doesn't result in a check
-        pawn_tries, try_moves = calculate_pawn_tries(new_board, 3 - player, from_sq, to_sq)
-        if pawn_tries > 0:
-            umpire_info.append(f"P{pawn_tries}")
-        if try_moves:
-            debug_print(f"Pawn try moves: {', '.join(try_moves)}")
-
-    comment = "{"
-    if umpire_info:
-        comment += ",".join(umpire_info)
-    
-    if illegal_moves:
-        comment += ":" if umpire_info else ":"
-        comment += ",".join(illegal_moves)
-    elif umpire_info:
-        comment += ":"
-
-    comment += "}"
+        comment = "{}"
 
     return f"{move_str} {comment}", new_board
 
@@ -1194,12 +1147,13 @@ def convert_chess(ludii_content, input_file, round_number, event_name, white_pla
 
         parsed = parse_ludii_move(move)
         if parsed:
-            player, from_sq, to_sq, is_capture, promotion, notes = parsed
+            player, from_sq, to_sq, is_capture, promotion, notes, setscore_actions = parsed
 
             print_player_components(board, player)
 
             if player in [1, 2]:
-                pgn_move, board = generate_pgn_move(board, from_sq, to_sq, is_capture, promotion, notes, player, [])
+                pgn_move = generate_basic_move_string(board, from_sq, to_sq, is_capture, promotion, PIECE_MAP.get(board.get(from_sq), ''))
+                board = update_board(board, from_sq, to_sq, promotion)
                 
                 if player == 1:
                     white_moves.append(pgn_move)
@@ -1272,7 +1226,7 @@ def convert_kriegspiel(ludii_content, input_file, round_number, event_name, whit
 
         parsed = parse_ludii_move(moves[i])
         if parsed:
-            player, from_sq, to_sq, is_capture, promotion, notes = parsed
+            player, from_sq, to_sq, is_capture, promotion, notes, setscore_actions = parsed
 
             print_player_components(board, player)
 
@@ -1283,7 +1237,8 @@ def convert_kriegspiel(ludii_content, input_file, round_number, event_name, whit
                     i += 1
 
             if player in [1, 2]:
-                pgn_move, new_board = generate_pgn_move(board, from_sq, to_sq, is_capture, promotion, notes, player, illegal_moves)
+                # Fresh-only P computed from current move's SetScore actions (add=true) for opponent
+                pgn_move, new_board = generate_pgn_move_with_tokens(board, from_sq, to_sq, is_capture, promotion, notes, player, illegal_moves, setscore_actions)
                 
                 if player == 1:
                     white_moves.append(pgn_move)
@@ -1299,6 +1254,8 @@ def convert_kriegspiel(ludii_content, input_file, round_number, event_name, whit
                 debug_print(print_board(board))
             else:
                 debug_print("Ignored: Setup move")
+
+            # Do not accumulate P across moves; P is fresh-only per move
         else:
             debug_print("Ignored: Parsing failed")
         

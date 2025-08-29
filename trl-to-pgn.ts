@@ -3,8 +3,6 @@
 // Imports
 import * as fs from 'fs';
 import * as path from 'path';
-// yargs is ESM-only in recent versions; we'll import it dynamically in `main` to avoid
-// require()/ESM interop problems when compiling to CommonJS.
 
 // #region Global variables and Types
 // Global debug flag
@@ -15,6 +13,13 @@ let debugLog: string[] = [];
 // Type definition for the chess board
 type Board = Record<string, number>;
 
+// Type for SetScore actions
+interface SetScoreAction {
+    player: number;
+    score: number;
+    add: boolean;
+}
+
 // Type for a successfully parsed Ludii move
 type ParsedMove = [
     player: number,
@@ -22,7 +27,8 @@ type ParsedMove = [
     toSq: string,
     isCapture: boolean,
     promotion: number | null,
-    notes: [string, string][]
+    notes: [string, string][],
+    setScoreActions: SetScoreAction[]
 ];
 
 // Chess piece mapping
@@ -307,6 +313,15 @@ function parseLudiiMove(moveStr: string): ParsedMove | null {
         }
     });
 
+    // Parse SetScore actions (allow optional add=, default to false)
+    const setScoreRegex = /SetScore:player=(\d+),score=(\d+)(?:,add=(true|false))?/g;
+    const setScoreMatches = [...moveStr.matchAll(setScoreRegex)];
+    const setScoreActions: SetScoreAction[] = setScoreMatches.map(match => ({
+        player: parseInt(match[1], 10),
+        score: parseInt(match[2], 10),
+        add: match[3] ? match[3] === 'true' : false
+    }));
+
     if (moverMatch && fromMatch && toMatch) {
         const player = parseInt(moverMatch[1], 10);
         const fromCoord = parseInt(fromMatch[1], 10);
@@ -324,8 +339,8 @@ function parseLudiiMove(moveStr: string): ParsedMove | null {
             }
         }
 
-        debugPrint(`Move parsed: player=${player}, from=${fromSq}, to=${toSq}, capture=${isCapture}, promotion=${promotion}, notes=${JSON.stringify(combinedNotes)}`);
-        return [player, fromSq, toSq, isCapture, promotion, combinedNotes];
+        debugPrint(`Move parsed: player=${player}, from=${fromSq}, to=${toSq}, capture=${isCapture}, promotion=${promotion}, notes=${JSON.stringify(combinedNotes)}, setScoreActions=${JSON.stringify(setScoreActions)}`);
+        return [player, fromSq, toSq, isCapture, promotion, combinedNotes, setScoreActions];
     }
     
     debugPrint("Move parsing failed");
@@ -358,89 +373,26 @@ function parseIllegalMove(moveStr: string, board: Board): string | null {
 }
 
 
-/**
- * Calculates potential pawn captures for Kriegspiel umpire messages.
- */
+/*
+COMMENTED-OUT: Pawn try generator symmetric to Ludii's CountTries.
+Kept for reference only; do not use for computing P in PGN.
+P is derived strictly from TRL SetScore actions (add=true) on the same move.
+
 function calculatePawnTries(board: Board, player: number, fromSq: string, toSq: string): { tries: number; tryMoves: string[] } {
-    // Calculate how many opponent pawns could capture onto `toSq`.
-    // This checks normal diagonal pawn captures (not full en-passant history).
-    // It returns a count and a list of algebraic attempts (like 'exd5').
-    debugPrint(`Calculating pawn tries for player=${player}, from=${fromSq}, to=${toSq}`);
-
-    const opponent = player === 1 ? 2 : 1;
-    const toFile = toSq[0];
-    const toRank = parseInt(toSq[1], 10);
-    const tryMoves: string[] = [];
-
-    // Determine the rank offset for opponent pawns: opponent pawns capture from one rank behind
-    // If opponent is white (parity 1) they capture from rank (toRank - 1) -> they move upward.
-    // If opponent is black (parity 0) they capture from rank (toRank + 1) -> they move downward.
-    const opponentIsWhite = (opponent % 2) === 1;
-    const fromRank = opponentIsWhite ? toRank - 1 : toRank + 1;
-
-    if (fromRank < 1 || fromRank > 8) {
-        debugPrint(`No pawn captures possible: fromRank ${fromRank} out of board`);
-        return { tries: 0, tryMoves: [] };
-    }
-
-    const files = [] as string[];
-    const leftFileCode = toFile.charCodeAt(0) - 1;
-    const rightFileCode = toFile.charCodeAt(0) + 1;
-    if (leftFileCode >= 'a'.charCodeAt(0)) files.push(String.fromCharCode(leftFileCode));
-    if (rightFileCode <= 'h'.charCodeAt(0)) files.push(String.fromCharCode(rightFileCode));
-
-    const seen = new Set<string>();
-    for (const f of files) {
-        const candidate = f + String(fromRank);
-        const piece = board[candidate];
-        if (piece === undefined) continue;
-        // Check it's an opponent pawn: PIECE_MAP[piece] === 'P' and parity matches opponent
-        if ((PIECE_MAP[piece] === 'P') && (piece % 2 === opponent % 2)) {
-            // Construct a simple pawn capture notation (file of pawn + 'x' + toSq)
-            const moveNotation = `${candidate[0]}x${toSq}`;
-            if (!seen.has(moveNotation)) {
-                tryMoves.push(moveNotation);
-                seen.add(moveNotation);
-            }
-        }
-    }
-
-    // Detect en-passant possibility: if the moved piece was a pawn and moved two ranks,
-    // an opponent pawn on the same rank as `toSq` and adjacent file could capture en-passant
-    // to the intermediate square.
-    const movedPiece = board[toSq];
-    if (movedPiece !== undefined && PIECE_MAP[movedPiece] === 'P' && (movedPiece % 2 === player % 2)) {
-        const fromRankNum = parseInt(fromSq[1], 10);
-        const toRankNum = parseInt(toSq[1], 10);
-        if (Math.abs(fromRankNum - toRankNum) === 2) {
-            const midRank = (fromRankNum + toRankNum) / 2;
-            // opponent pawns that could capture en-passant are on files adjacent to toFile and on rank = toRank
-            const adjFiles: string[] = [];
-            const lf = toFile.charCodeAt(0) - 1;
-            const rf = toFile.charCodeAt(0) + 1;
-            if (lf >= 'a'.charCodeAt(0)) adjFiles.push(String.fromCharCode(lf));
-            if (rf <= 'h'.charCodeAt(0)) adjFiles.push(String.fromCharCode(rf));
-
-            for (const af of adjFiles) {
-                const candidate = af + String(toRank);
-                const piece = board[candidate];
-                if (piece === undefined) continue;
-                if ((PIECE_MAP[piece] === 'P') && (piece % 2 === opponent % 2)) {
-                    // en-passant capture would land on mid square (file = toFile, rank = midRank)
-                    const epTarget = `${toFile}${midRank}`;
-                    const moveNotation = `${candidate[0]}x${epTarget} e.p.`;
-                    if (!seen.has(moveNotation)) {
-                        tryMoves.push(moveNotation);
-                        seen.add(moveNotation);
-                    }
-                }
-            }
-        }
-    }
-
-    debugPrint(`Pawn tries found: ${tryMoves.length} -> ${JSON.stringify(tryMoves)}`);
-    return { tries: tryMoves.length, tryMoves };
+    return { tries: 0, tryMoves: [] };
 }
+*/
+
+/**
+ * Counts all pawn capture moves available for a player on the given board, optionally including en passant to a target square.
+ * Returns the total number of distinct pawn capture moves (each diagonal counts separately), not just the number of pawns.
+ */
+/*
+COMMENTED-OUT helper: count pawn capture moves for a player (reference only).
+function countPawnCaptureMoves(board: Board, playerToMove: number, enPassantTarget: string | null): number {
+    return 0;
+}
+*/
 
 /**
  * Generates the core part of the PGN move string, handling ambiguity.
@@ -524,7 +476,7 @@ function canMoveTo(fromSq: string, toSq: string, piece: number): boolean {
 function generatePgnMove(
     board: Board, fromSq: string, toSq: string, isCapture: boolean, 
     promotion: number | null, notes: [string, string][], player: number, 
-    illegalMoves: string[]
+    illegalMoves: string[], setScoreActions: SetScoreAction[]
 ): { pgnMove: string; newBoard: Board } {
     const piece = board[fromSq];
     const pieceSymbol = piece ? PIECE_MAP[piece] : '';
@@ -538,8 +490,21 @@ function generatePgnMove(
 
     const umpireInfo: string[] = [];
     
+    // Process SetScore actions to generate try information
+    // P<n> means: this move generated n tries for the opponent.
+    const opponent = player === 1 ? 2 : 1;
+    let triesGenerated = 0;
+    for (const action of setScoreActions) {
+        if (action.add && action.score > 0 && action.player === opponent) {
+            triesGenerated += action.score;
+        }
+    }
+    // Order to match reference: capture first, then P<n>, then checks
     if (finalIsCapture) {
         umpireInfo.push(`X${toSq.toLowerCase()}`);
+    }
+    if (triesGenerated > 0) {
+        umpireInfo.push(`P${triesGenerated}`);
     }
 
     const isCheck = notes.some(([note]) => note.toLowerCase().includes("check"));
@@ -549,25 +514,23 @@ function generatePgnMove(
             .map(([note]) => note.split(' ')[0].toLowerCase());
         const checkStr = "C" + checkTypes.map(type => type[0].toUpperCase()).join('');
         umpireInfo.push(checkStr);
-    } else {
-        const { tries } = calculatePawnTries(newBoard, player, fromSq, toSq);
-        if (tries > 0) {
-            umpireInfo.push(`P${tries}`);
-        }
     }
 
     let comment = "{";
     if (umpireInfo.length > 0) {
         comment += umpireInfo.join(',');
     }
-    
     if (illegalMoves.length > 0) {
-        comment += (umpireInfo.length > 0 ? ":" : "") + illegalMoves.join(',');
+        // Always prefix illegal attempts with a leading colon, even if no umpireInfo
+        comment += ":" + illegalMoves.join(',');
+    } else if (triesGenerated > 0 || isCheck) {
+        // Add trailing colon when only P or C (check) is present
+        comment += ":";
     }
     comment += "}";
 
-    // Only add comment if it contains information
-    const pgnMove = comment.length > 2 ? `${moveStr} ${comment}` : moveStr;
+    // Always add comment braces for Kriegspiel
+    const pgnMove = `${moveStr} ${comment}`;
     
     return { pgnMove, newBoard };
 }
@@ -628,7 +591,8 @@ function convertKriegspiel(ludiiContent: string, inputFile: string, eventName: s
     const whiteMoves: string[] = [];
     const blackMoves: string[] = [];
     let illegalMoves: string[] = [];
-    
+    // Fresh-only policy: do not carry P across moves; only show tries generated on the current move
+
     for (let i = 0; i < moves.length; i++) {
         debugPrint(`\nMove ${i + 1}: ${moves[i]}`);
 
@@ -640,7 +604,7 @@ function convertKriegspiel(ludiiContent: string, inputFile: string, eventName: s
 
         const parsed = parseLudiiMove(moves[i]);
         if (parsed) {
-            let [player, fromSq, toSq, isCapture, promotion, notes] = parsed;
+            let [player, fromSq, toSq, isCapture, promotion, notes, setScoreActions] = parsed;
 
             if (i + 1 < moves.length && moves[i+1].includes('Promote:')) {
                 const nextParsed = parseLudiiMove(moves[i+1]);
@@ -651,7 +615,33 @@ function convertKriegspiel(ludiiContent: string, inputFile: string, eventName: s
             }
 
             if (player === 1 || player === 2) {
-                const { pgnMove, newBoard } = generatePgnMove(board, fromSq, toSq, isCapture, promotion, notes, player, illegalMoves);
+                const opponent = player === 1 ? 2 : 1;
+
+                // Sum of fresh tries this move (for opponent)
+                const addSum = setScoreActions
+                    .filter(a => a.player === opponent && a.add && a.score > 0)
+                    .reduce((s, a) => s + a.score, 0);
+
+                let triesToDisplay: number | null = null;
+                debugPrint(
+                    `P-debug before: ply=${i + 1}, mover=${player}, opponent=${opponent}, addSum=${addSum}`
+                );
+                if (addSum > 0) {
+                    // Fresh P generated now for the opponent; fresh-only policy (no carry-over)
+                    triesToDisplay = addSum;
+                    debugPrint(`P-debug update: fresh P this move = ${addSum}`);
+                } else {
+                    debugPrint('P-debug fresh-only: no P displayed for this move');
+                }
+
+                // Build effective SetScore list solely for display purposes (P rendering)
+                const effectiveSetScores: SetScoreAction[] = [];
+                if (triesToDisplay !== null) {
+                    effectiveSetScores.push({ player: opponent, score: triesToDisplay, add: true });
+                }
+
+                const { pgnMove, newBoard } = generatePgnMove(board, fromSq, toSq, isCapture, promotion, notes, player, illegalMoves, effectiveSetScores);
+                debugPrint(`P-debug render: effectiveSetScores=${JSON.stringify(effectiveSetScores)}`);
                 if (player === 1) whiteMoves.push(pgnMove);
                 else blackMoves.push(pgnMove);
                 illegalMoves = [];
