@@ -17,7 +17,7 @@
       @media (max-width: 950px){ .grid{ grid-template-columns:1fr; } }
       .panel{ background:linear-gradient(180deg,#0e162b,#0d1428); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow: 0 1px 0 rgba(255,255,255, .03) inset, 0 10px 40px rgba(0,0,0,.35); }
       .panel h2{ margin:0 0 10px 0; font-size:16px; font-weight:600; }
-      .controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
       .controls .spacer{ flex:1; }
       textarea{ width:100%; min-height:180px; background:#0b1222; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px; font-size:13px; resize:vertical; }
       input[type="file"]{ display:none; }
@@ -91,6 +91,7 @@
             <div style="flex:1">
               <h2>Moves</h2>
               <div id="moves"></div>
+              <div id="meta" class="small" style="margin-top:10px; line-height:1.4"></div>
             </div>
           </div>
         </section>
@@ -101,15 +102,16 @@
     </footer>
 
     <script type="module">
-      import { ludiiToPgn } from '../dist/trl-to-pgn.js';
-      import { pgnToTrl } from '../dist/pgn-to-trl.js';
+  import { ludiiToPgn } from '../dist/trl-to-pgn.js';
+  import { pgnToTrl, parsePgn } from '../dist/pgn-to-trl.js';
       const $ = (s)=>document.querySelector(s);
       const input = $('#input');
       const inputTag = $('#inputTag');
       const file = $('#file');
       const board = $('#board');
-      const status = $('#status');
+  const status = $('#status');
       const downloadAlt = $('#downloadAlt');
+  const meta = $('#meta');
       let game = new Chess();
       let sanMoves = [];
       let idx = 0;
@@ -186,6 +188,20 @@
         downloadAlt.textContent = t === 'pgn' ? 'Download TRL' : t === 'trl' ? 'Download PGN' : 'Download TRL/PGN';
       });
 
+      // Drag & drop support on the textarea
+      input.addEventListener('dragover', (e)=>{ e.preventDefault(); });
+      input.addEventListener('drop', async (e)=>{
+        e.preventDefault();
+        const f = e.dataTransfer?.files?.[0];
+        if(!f) return;
+        const text = await f.text();
+        input.value = text;
+        const t = detectType(text);
+        lastInputType = t; setTag(t);
+        downloadAlt.textContent = t === 'pgn' ? 'Download TRL' : t === 'trl' ? 'Download PGN' : 'Download TRL/PGN';
+        status.textContent = 'Loaded file: ' + f.name;
+      });
+
       async function ensurePGN(text){
         const type = lastInputType ?? detectType(text);
         if(type === 'pgn') return text;
@@ -226,6 +242,11 @@
           status.textContent = 'Loaded ' + sanMoves.length + ' moves';
           // Prepare alternate for download
           lastConverted = await ensureAlt(text);
+          // Show header metadata
+          const { header } = parsePgn(pgn);
+          const fields = ['Event','Site','Date','White','Black','Variant','Result'];
+          const parts = fields.map(k => header[k] ? `<div><b>${k}:</b> ${header[k]}</div>` : '').filter(Boolean);
+          meta.innerHTML = parts.join('') || '';
         } catch(e){
           status.textContent = 'Error: ' + e.message;
         }
