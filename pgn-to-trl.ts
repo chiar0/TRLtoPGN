@@ -452,16 +452,24 @@ function generateIllegalTrlMove(move: string, player: number, board?: Board): st
 /**
  * Generates a TRL line for a legal move.
  */
-function generatePromotionMove(to: string, promotion: string, player: number): string {
+function generatePromotionMove(to: string, promotion: string, player: number, explicitTries: number | null = null): string {
     const toCoord = algebraicToLudii(to);
     if (!promotion) {
         throw new Error('Promotion piece is required');
     }
     const promoPieceId = player === 1 ? PGN_PIECE_TO_LUDII[promotion].white : PGN_PIECE_TO_LUDII[promotion].black;
     const scoringPlayer = player === 1 ? 2 : 1;
-    
-    // Based on semantic analysis, promotions should NOT include SetScore add=true
-    return `Move=[Move:mover=${player},from=${toCoord},to=${toCoord},actions=[Promote:type=Cell,to=${toCoord},what=${promoPieceId},decision=true,SetScore:player=${scoringPlayer},score=0]]`;
+
+    // Promotion emits base SetScore and mirrors any explicit P tries as add=true
+    const parts: string[] = [];
+    parts.push(`Promote:type=Cell,to=${toCoord},what=${promoPieceId},decision=true`);
+    parts.push(`SetScore:player=${scoringPlayer},score=0`);
+    if (explicitTries !== null && explicitTries > 0) {
+        for (let i = 0; i < explicitTries; i++) {
+            parts.push(`SetScore:player=${scoringPlayer},score=1,add=true`);
+        }
+    }
+    return `Move=[Move:mover=${player},from=${toCoord},to=${toCoord},actions=[${parts.join('],[')}]]`;
 }
 
 function generateTrlMove(board: Board, from: string, to: string, promotion: string | null, player: number, umpireNotes: string[], currentEnPassant: number, explicitTries: number | null = null): { line: string, newEnPassant: number } {
@@ -562,90 +570,28 @@ function generateTrlMove(board: Board, from: string, to: string, promotion: stri
         }
     }
 
-    // 6) SetScore: based on Ludii Kriegspiel logic analysis
+    // 6) Umpire notes should precede SetScore in action ordering
+    // Push any note actions now to match reference ordering
+    for (const na of noteActions) actions.push(na);
+
+    // If this move will be followed by a promotion, original TRL includes SetNextPlayer for the same mover
+    const willPromote = !!promotion;
+    if (willPromote) {
+        actions.push(`SetNextPlayer:player=${player}`);
+    }
+
+    // 7) SetScore: strictly from explicit PGN P markers (fresh-only semantics)
     const scoringPlayer = player === 1 ? 2 : 1;
-    
-    // Ludii Kriegspiel scoring logic:
-    // - CountTries: counts diagonal pawn capture attempts after every valid move
-    // - CountEnPassantTries: counts en passant attempts during pawn double-step moves
-    // - Special case: when en passant expires, count tries BEFORE it resets
-    // - Edge case: when both expire AND new en passant is set (pawn double-step while en passant active)
-    // These translate to SetScore add=true in TRL files
-    
-    let needsAddScore = false;
-    let scoreValue = 1; // Default scoring increment
-    
-    // Handle the complex case: en passant expires AND new en passant is set simultaneously
-    if (currentEnPassant !== -1 && willSetNewEnPass) {
-        // This happens when a pawn does a double-step while there's already an active en passant
-        // Count both the expiring en passant AND the new en passant opportunities
-        const expiredEnPassSquare = ludiiToAlgebraic(currentEnPassant);
-        const expiredTries = countEnPassantTries(board, 3 - player, expiredEnPassSquare);
-        
-        // For the new en passant, apply the move first to get the correct board state
-        const testBoard = JSON.parse(JSON.stringify(board));
-        testBoard[to] = testBoard[from];
-        delete testBoard[from];
-        const newTries = countEnPassantTries(testBoard, player, to);
-        
-        const totalTries = expiredTries + newTries;
-        if (totalTries > 0) {
-            needsAddScore = true;
-            scoreValue = totalTries;
-        }
-    }
-    // Check if en passant is about to expire (currentEnPassant was set, but new move won't set en passant)
-    else if (currentEnPassant !== -1 && !willSetNewEnPass) {
-        // En passant just expired - count tries before it resets (critical timing!)
-        const enPassSquare = ludiiToAlgebraic(currentEnPassant);
-        const expiredEnPassantTries = countEnPassantTries(board, 3 - player, enPassSquare);
-        if (expiredEnPassantTries > 0) {
-            needsAddScore = true;
-            scoreValue = expiredEnPassantTries;
-        }
-    }
-    
-    if (!needsAddScore) {
-        // Count pawn capture tries after this move (CountTries equivalent)
-        // For this we need the board state AFTER the move, so we copy and apply the move
-        const testBoard = JSON.parse(JSON.stringify(board));
-        // Apply the move to the test board
-        testBoard[to] = testBoard[from];
-        delete testBoard[from];
-        
-        const pawnCaptureTries = countPawnCaptureTries(testBoard, player);
-        if (pawnCaptureTries > 0) {
-            needsAddScore = true;
-            scoreValue = pawnCaptureTries;
-        }
-        
-        // Count en passant tries if this is a pawn double-step (CountEnPassantTries equivalent)  
-        if (willSetNewEnPass) {
-            const enPassantTries = countEnPassantTries(testBoard, player, to);
-            if (enPassantTries > 0) {
-                needsAddScore = true;
-                scoreValue = enPassantTries;
-            }
-        }
-    }
-    
     // Always add base score (every move gets this)
     actions.push(`SetScore:player=${scoringPlayer},score=0`);
-    
-    // Add scoring based on explicit tries from PGN or calculated Ludii logic
-    if (explicitTries !== null) {
-        // Use explicit tries from PGN P[number]: markers
+    // Add scoring only if explicit P markers are present in the PGN comment
+    if (explicitTries !== null && explicitTries > 0) {
         for (let i = 0; i < explicitTries; i++) {
-            actions.push(`SetScore:player=${scoringPlayer},score=1,add=true`);
-        }
-    } else if (needsAddScore) {
-        // Fallback to calculated tries based on Ludii logic - individual tries, not summed
-        for (let i = 0; i < scoreValue; i++) {
             actions.push(`SetScore:player=${scoringPlayer},score=1,add=true`);
         }
     }
 
-    // 7) SetState or SetCounter based on piece type
+    // 8) SetState or SetCounter based on piece type
     // Pawns use SetCounter, other pieces (N,B,R,Q,K) use SetState
     // Skip SetState for castling since it's already handled above
     const isCastling = pieceLetter === 'K' && Math.abs(from.charCodeAt(0) - to.charCodeAt(0)) === 2;
@@ -656,20 +602,18 @@ function generateTrlMove(board: Board, from: string, to: string, promotion: stri
         actions.push(`SetState:type=Cell,to=${toCoord},state=0`);
     }
 
-    // 8) Final EnPassant reset for non-double-step moves
+    // 9) Final EnPassant reset for non-double-step moves
     if (!willSetNewEnPass) {
         actions.push(`SetVar:name=EnPassantLocation,value=-1`);
     }
 
-    // 7) Notes last
+    // Build final parts
     const allActions = actions;
-    const allNotes = noteActions.length ? `],[${noteActions.join('],[')}` : '';
-
     const finalParts = [
         `mover=${player}`,
         `from=${fromCoord}`,
         `to=${toCoord}`,
-        `actions=[${allActions.join('],[')}${allNotes}]`
+        `actions=[${allActions.join('],[')}]`
     ];
     // determine new en-passant state: if pawn double-step set enPass, otherwise reset to -1 on capture or default -1
     let newEnPassant = -1;
@@ -857,21 +801,19 @@ function pgnToTrl(pgnContent: string, refPatterns?: { levelToSet: Set<string>, e
             
             // Extract P[number]: markers where number = number of tries
             for (const part of parts) {
-                // Check if this part contains P[number]: anywhere in it (not just at start)
-                const tryMatch = part.match(/P(\d+):/);
+                // Accept both 'Pn' and 'Pn:' tokens
+                const tryMatch = part.match(/^P(\d+):?$/);
                 if (tryMatch) {
                     const numberOfTries = parseInt(tryMatch[1]);
-                    
-                    // P[number]: indicates the number of tries for the current player
                     explicitTries = numberOfTries;
                 }
             }
             
             // Remove any parts that are actually illegal-attempt tokens (square-to-square or with piece letter) or P markers
             const filtered = parts.filter((p: string) => 
-                !(/[a-h][1-8]-[a-h][1-8]/i.test(p) || 
-                  /[KQRNBkq rnb]?[a-h][1-8]-[KQRNBkq rnb]?[a-h][1-8]/i.test(p) ||
-                  /^P\d+:.*$/.test(p))
+                !(/[a-h][1-8]-[a-h][1-8]/i.test(p) ||
+                  /[KQRNBkqrnb]?[a-h][1-8]-[KQRNBkqrnb]?[a-h][1-8]/i.test(p) ||
+                  /^P\d+:?$/.test(p))
             );
             umpireNotes.push(...filtered);
         }
@@ -887,7 +829,7 @@ function pgnToTrl(pgnContent: string, refPatterns?: { levelToSet: Set<string>, e
 
         // 6. If this was a promotion, generate a separate promotion move
         if (promotion) {
-            const promotionRes = generatePromotionMove(to, promotion, currentPlayer);
+            const promotionRes = generatePromotionMove(to, promotion, currentPlayer, explicitTries);
             trlLines.push(promotionRes);
         }
         

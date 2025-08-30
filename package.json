@@ -10,6 +10,10 @@
   "scripts": {
     "pgn-to-trl": "./pgn-to-trl.sh",
     "trl-to-pgn": "./trl-to-pgn.sh",
+    "roundtrip:trl": "bash tools/roundtrip_trl.sh -f",
+    "roundtrip:pgn": "bash tools/roundtrip_pgn.sh -f",
+    "roundtrip:examples": "bash tools/roundtrip_trl.sh -f examples/TOURNAMENT_27082024-1-REF_ORIGINAL.trl && bash tools/roundtrip_trl.sh -f examples/TOURNAMENT_27082024-2-REF_ORIGINAL.trl",
+    "roundtrip:all-trl": "bash -lc 'for f in $(ls *.trl examples/*.trl 2>/dev/null | grep -Ev \"(_rt|_backup)\\.trl$|(_rt|_backup)_[^/]*\\.trl$\"); do [ -f \"$f\" ] && bash tools/roundtrip_trl.sh -f \"$f\"; done'",
     "pgn-to-trl-direct": "node --loader ts-node/esm pgn-to-trl.ts",
     "trl-to-pgn-direct": "node --loader ts-node/esm trl-to-pgn.ts",
     "test": "npm run test:python && npm run test:semantic",
