@@ -664,7 +664,7 @@ function convertKriegspiel(ludiiContent: string, inputFile: string, eventName: s
 /**
  * Main dispatcher to select the correct conversion function based on variant.
  */
-function ludiiToPgn(ludiiContent: string, inputFile: string, eventName: string, whitePlayer: string, blackPlayer: string): string {
+export function ludiiToPgn(ludiiContent: string, inputFile: string, eventName: string, whitePlayer: string, blackPlayer: string): string {
     const gameVariant = getGameVariant(ludiiContent);
 
     if (gameVariant === "game=/lud/board/war/replacement/checkmate/chess/Chess.lud") {

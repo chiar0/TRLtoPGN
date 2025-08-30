@@ -22,7 +22,8 @@
   },
   "include": [
     "*.ts",
-    "tools/*.ts"
+    "tools/*.ts",
+    "src/*.ts"
   ],
   "exclude": [
     "node_modules",

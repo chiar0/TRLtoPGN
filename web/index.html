@@ -38,6 +38,18 @@
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script type="module" src="https://unpkg.com/chessboard-element?module"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "fs": "./shims/fs.js",
+          "path": "./shims/path.js"
+        }
+      }
+    </script>
+    <script>
+      // Minimal Node global shim so CLI guards in modules don't explode
+      window.process = { argv: [], exit: function(){}, env: {} };
+    </script>
   </head>
   <body>
     <header>
@@ -89,7 +101,8 @@
     </footer>
 
     <script type="module">
-      import { ludiiToPgn, pgnToTrl } from '../src/conversion.ts';
+      import { ludiiToPgn } from '../dist/trl-to-pgn.js';
+      import { pgnToTrl } from '../dist/pgn-to-trl.js';
       const $ = (s)=>document.querySelector(s);
       const input = $('#input');
       const inputTag = $('#inputTag');
@@ -163,12 +176,14 @@
         input.value = text;
         const t = detectType(text);
         lastInputType = t; setTag(t);
+        downloadAlt.textContent = t === 'pgn' ? 'Download TRL' : t === 'trl' ? 'Download PGN' : 'Download TRL/PGN';
         status.textContent = 'Loaded file: ' + f.name;
       });
 
       input.addEventListener('input', ()=>{
         const t = detectType(input.value);
         lastInputType = t; setTag(t);
+        downloadAlt.textContent = t === 'pgn' ? 'Download TRL' : t === 'trl' ? 'Download PGN' : 'Download TRL/PGN';
       });
 
       async function ensurePGN(text){
@@ -231,6 +246,7 @@
 
       // Init
       setTag(null);
+      downloadAlt.textContent = 'Download TRL/PGN';
       renderBoard();
     </script>
   </body>
