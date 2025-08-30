@@ -20,7 +20,8 @@
     "test:python": "python3 TRLtoPGN.py -f examples/TOURNAMENT_27082024-1-REF_ORIGINAL.trl -w 'Player 1' -b 'Player 2' -o test_output.pgn",
     "test:semantic": "python3 tools/semantic_compare.py examples/TOURNAMENT_27082024-1-REF_ORIGINAL.trl examples/TOURNAMENT_27082024-2-REF_ORIGINAL.trl test_output.csv",
     "test:typescript": "./pgn-to-trl.sh -f examples/TOURNAMENT_27082024-1.pgn",
-    "build": "tsc",
+  "build": "tsc",
+  "web:build": "npm run build && bash -lc 'mkdir -p web/dist && cp -f dist/*.js web/dist/ && cp -f dist/src/*.js web/dist/ || true'",
   "clean": "rm -rf dist/ *.csv node_modules/.cache temp/ .temp/ *.log *.diff debug_output*.txt comparison_report*.csv semantic_report*.csv differences_summary.txt orig_setscores.txt ref_setscores.txt test_*.pgn test_*.trl examples/*_rt.* examples/*_rt_*.* examples/*_roundtrip.* examples/*_rt_roundtrip.* examples/*_rt_rt.*",
     "semantic-compare": "python3 tools/semantic_compare.py",
     "usage": "./USAGE.sh"

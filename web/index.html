@@ -72,6 +72,7 @@
           <div class="row" style="margin-top:8px">
             <button id="start" class="btn primary">Start ▶</button>
             <button id="downloadAlt" class="btn">Download TRL/PGN</button>
+            <button id="copyOut" class="btn ghost">Copy Output</button>
             <span id="status" class="small"></span>
           </div>
         </section>
@@ -110,7 +111,8 @@
       const file = $('#file');
       const board = $('#board');
   const status = $('#status');
-      const downloadAlt = $('#downloadAlt');
+  const downloadAlt = $('#downloadAlt');
+  const copyOut = $('#copyOut');
   const meta = $('#meta');
       let game = new Chess();
       let sanMoves = [];
@@ -186,6 +188,7 @@
         const t = detectType(input.value);
         lastInputType = t; setTag(t);
         downloadAlt.textContent = t === 'pgn' ? 'Download TRL' : t === 'trl' ? 'Download PGN' : 'Download TRL/PGN';
+        try { localStorage.setItem('viewer_input', input.value); } catch {}
       });
 
       // Drag & drop support on the textarea
@@ -265,8 +268,20 @@
         setTimeout(()=> URL.revokeObjectURL(a.href), 500);
       };
 
-      // Init
-      setTag(null);
+      copyOut.onclick = async ()=>{
+        const data = lastConverted;
+        if(!data){ status.textContent = 'Nothing to copy. Click Start first.'; return; }
+        try{
+          await navigator.clipboard.writeText(data);
+          status.textContent = 'Copied to clipboard';
+        } catch(e){
+          status.textContent = 'Copy failed';
+        }
+      };
+
+  // Init
+  try { const saved = localStorage.getItem('viewer_input'); if(saved) { input.value = saved; const t = detectType(saved); lastInputType = t; setTag(t); } } catch {}
+  if(!input.value) setTag(null);
       downloadAlt.textContent = 'Download TRL/PGN';
       renderBoard();
     </script>
