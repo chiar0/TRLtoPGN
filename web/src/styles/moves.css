@@ -1,0 +1,64 @@
+/* Move Display & Game States */
+.move {
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-block;
+  margin: 1px;
+  color: #cbd5e1;
+  transition: background-color .15s ease, color .15s ease;
+}
+
+/* Legal moves */
+.move.legal-past {
+  color: #93c5fd;
+}
+
+.move.legal-current {
+  background: rgba(99, 102, 241, .18);
+  color: #e7e9ff;
+}
+
+.move.legal-current.active {
+  outline: 1px solid rgba(99, 102, 241, .45);
+}
+
+/* Illegal attempts */
+.move.illegal {
+  color: #fbbf24;
+  border: 1px dashed #fbbf24;
+  background: rgba(251, 191, 36, .10);
+}
+
+.move.illegal-current {
+  background: rgba(251, 191, 36, .22);
+  color: #fde68a;
+  border-color: #f59e0b;
+}
+
+.move.illegal-past {
+  color: #facc15;
+  border-color: #facc15;
+  background: rgba(250, 204, 21, .08);
+}
+
+/* The legal move whose turn is being interrupted by illegal attempts */
+.move.legal-queued {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, .10);
+}
+
+.chat {
+  max-height: 200px;
+  overflow: auto;
+  background: #0b1222;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  margin-top: 10px;
+}
+
+.chat .msg {
+  margin: 2px 0;
+  color: #cbd5e1;
+}

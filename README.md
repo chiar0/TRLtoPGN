@@ -44,6 +44,48 @@ npm run clean
 
 ## 📖 Usage Guide
 
+### Web Viewer (Client-only)
+
+The `web/` client is a single-page, modular viewer for PGN ⇄ TRL conversion and replay. It runs entirely in the browser — no backend required.
+
+Run locally:
+
+```bash
+cd web
+python3 -m http.server 8080
+# Open http://localhost:8080/web/index.html
+```
+
+Key functionality:
+- Converter: paste or open `.pgn`/`.trl`, auto-detects format, shows converted output.
+- Replay: step, jump to start/end, auto-play forward/backward with speed boost on repeated clicks.
+- Kriegspiel aids: illegal attempts overlay (fading arrows), umpire notes, try counters, raw move box.
+- Board header: displays players and meta; click to open the inline header editor; edits apply live to PGN.
+- Editor: toggle for original/converted PGN; or open the editor under the board header.
+- Engine: optional Stockfish analysis via WebWorker with best-move highlight and status; respects autoplay wait at base speed.
+- Share: generates a copyable link; format selectable (PGN/TRL); compression auto/none/gzip/deflate; live-updates when settings change.
+- Reset: Clear returns to Auto-detect state, hides converted preview, settings, and share box; resets engine and overlays.
+
+Structure overview:
+- `web/index.html`: single entrypoint with clean markup and IDs.
+- `web/src/js/main.js`: orchestrator — binds UI, calls modules.
+- `web/src/js/modules/`:
+	- `utils.js`: DOM helpers, type detection.
+	- `game-state.js`: chess.js wrapper, move index, kriegspiel state.
+	- `file-manager.js`: detect/convert PGN⇄TRL, update converted preview and info.
+	- `header-manager.js`: parse/apply PGN headers; render meta bar.
+	- `board-renderer.js`: board drawing and SVG overlay arrows (with drag-layer guard).
+	- `engine-manager.js`: Stockfish worker loading, caching by FEN, UCI handling.
+	- `compression.js`: base64url, gzip/deflate helpers for share links.
+	- `ui-visibility.js`: centralized visibility rules for panels and controls.
+	- `share-manager.js`: Share button UX, live URL building, auto-copy.
+	- `clipboard-manager.js`: copy/download (original and converted), filename/extension handling.
+
+Notes:
+- Only one HTML entrypoint exists in the repo: `web/index.html`.
+- Root landing `index.html` has been removed to avoid duplication; host should serve `web/index.html`.
+- Build artifacts used by the browser live in `dist/` and `web/dist/` and are ignored by git.
+
 ### TypeScript Version (Recommended)
 
 #### PGN to TRL Conversion

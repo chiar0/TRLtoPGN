@@ -1,0 +1,12 @@
+/* Import all CSS modules */
+@import './variables.css';
+@import './base.css';
+@import './header.css';
+@import './layout.css';
+@import './panels.css';
+@import './forms.css';
+@import './controls.css';
+@import './board.css';
+@import './moves.css';
+@import './ui-elements.css';
+@import './meta.css';

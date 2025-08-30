@@ -1,0 +1,40 @@
+/* Meta Bar & Header UI */
+.metaBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #0f1a36, #0d1428);
+  cursor: pointer;
+}
+
+.metaBar:hover {
+  filter: brightness(1.05);
+}
+
+.metaPlayers {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.metaPlayers .vs {
+  opacity: .7;
+  font-weight: 500;
+}
+
+.metaInfo {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.metaPlayers .name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

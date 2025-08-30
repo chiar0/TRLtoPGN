@@ -1,0 +1,85 @@
+/* Layout & Grid Styles */
+main {
+  padding: 24px 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(460px, 520px) 1fr;
+  gap: 20px;
+  align-items: start;
+  justify-content: center;
+}
+
+.grid.conv-collapsed {
+  grid-template-columns: 1fr;
+}
+
+/* When converter is hidden, allow a tighter board to keep moves right */
+.grid.conv-collapsed.tight chess-board {
+  width: 520px;
+}
+.grid.conv-collapsed.tight .board-wrap {
+  max-width: 520px;
+}
+
+/* Converter-only mode: single centered column, fully fluid */
+.grid.conv-only {
+  grid-template-columns: 1fr;
+  justify-content: center;
+}
+.grid.conv-only #converterPanel {
+  max-width: 680px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 1200px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  main { padding: 16px 8px; }
+  .panel { padding: 10px; }
+  .row { gap: 6px; }
+  .boardRow { flex-wrap: wrap; }
+  .boardRow .sideCol { flex: 1 1 100%; max-width: 100%; }
+  #moves { max-width: 100%; }
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.row .spacer {
+  flex: 1;
+}
+
+.boardRow {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.boardRow.moves-right {
+  flex-wrap: nowrap;
+}
+
+.boardRow.moves-right .sideCol {
+  flex: 0 0 520px;
+  max-width: 520px;
+}
+
+@media (max-width: 1200px) {
+  .boardRow {
+    justify-content: center;
+  }
+  .sideCol {
+    flex: 1 1 100%;
+  }
+}

@@ -1,0 +1,56 @@
+/* Panel Styles */
+.panel {
+  background: linear-gradient(180deg, #0e162b, #0d1428);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 10px 40px rgba(0, 0, 0, .35);
+}
+
+.panel h2 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.preview {
+  margin-top: 12px;
+  background: #0b1222;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.preview textarea {
+  width: 100%;
+  min-height: 140px;
+  background: #0a111f;
+  border: 1px solid #1b2948;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.popover {
+  position: absolute;
+  background: linear-gradient(180deg, #0e162b, #0d1428);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
+}
+
+.popover::before {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 8px solid transparent;
+}
+
+.popover.left::before {
+  left: 10px;
+  top: -16px;
+  border-bottom-color: var(--border);
+}

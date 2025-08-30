@@ -1,0 +1,75 @@
+/* Form Controls */
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.controls .spacer {
+  flex: 1;
+}
+
+textarea {
+  width: 100%;
+  min-height: 180px;
+  background: #0b1222;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  resize: vertical;
+}
+
+input[type="file"] {
+  display: none;
+}
+
+/* Button Styles */
+.btn {
+  appearance: none;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #1b2544;
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: .2px;
+  cursor: pointer;
+  border: 1px solid #2a355c;
+  transition: all .15s ease;
+}
+
+.btn:hover {
+  background: #212e57;
+  transform: translateY(-1px);
+}
+
+.btn.primary {
+  background: linear-gradient(180deg, #5258f2, #464ce2);
+  border-color: #4f46e5;
+}
+
+.btn.primary:hover {
+  filter: brightness(1.05);
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: #223059;
+}
+
+.btn.tiny {
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 8px;
+}
+
+.btn .subLabel {
+  display: block;
+  font-size: 10px;
+  opacity: .85;
+  margin-top: 2px;
+}

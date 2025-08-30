@@ -774,7 +774,7 @@ function generateTrlFooter(result: string, isKrieg: boolean): string[] {
 /**
  * Parses the entire PGN content into header and structured moves.
  */
-function parsePgn(pgnContent: string) {
+export function parsePgn(pgnContent: string) {
     // Split header and moves more robustly: header ends at first blank line
     const parts = pgnContent.split(/\r?\n\r?\n/);
     const headerStr = parts.shift() || '';
@@ -871,7 +871,7 @@ function parsePgn(pgnContent: string) {
 // #region Main Conversion Logic
 // Removed reference-pattern support: conversion now follows semantic rules only.
 
-function pgnToTrl(pgnContent: string, refPatterns?: { levelToSet: Set<string>, enpassBefore: Set<string>, enpassAfter: Set<string> }): string {
+export function pgnToTrl(pgnContent: string, refPatterns?: { levelToSet: Set<string>, enpassBefore: Set<string>, enpassAfter: Set<string> }): string {
     const { header, moves } = parsePgn(pgnContent);
     const isKrieg = !!(header.Variant && header.Variant.includes('Kriegspiel'));
     

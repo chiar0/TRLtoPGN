@@ -1,0 +1,92 @@
+/* Board & Chess-related Styles */
+chess-board {
+  display: block;
+  width: 460px;
+  max-width: 100%;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.board-wrap {
+  position: relative;
+  display: block;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+/* Keep the meta bar aligned to the board width */
+#boardHeaderBar {
+  max-width: 460px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.grid.conv-collapsed chess-board {
+  width: 620px;
+}
+
+.grid.conv-collapsed .board-wrap {
+  max-width: 620px;
+}
+
+.grid.conv-collapsed #boardHeaderBar { max-width: 620px; }
+
+.leftCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+}
+
+.overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.flipDock {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+}
+
+.info {
+  margin-top: 8px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.sideCol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#moves {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+  background: #0b1222;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+/* Hide transient drag container from chessboard-element when present */
+#dragged-pieces { display: none !important; }
+
+/* Mobile overflow guards */
+@media (max-width: 700px) {
+  .grid.conv-collapsed chess-board,
+  .grid.conv-collapsed.tight chess-board {
+    width: 100% !important;
+  }
+  .grid.conv-collapsed .board-wrap,
+  .grid.conv-collapsed.tight .board-wrap {
+    max-width: 100% !important;
+  }
+}

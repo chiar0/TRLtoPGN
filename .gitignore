@@ -1,132 +1,76 @@
-node_modules/
-/dist/
-__pycache__/
-*.pyc
-.DS_Store
-*.swp
-*.swo
-.temp/
-temp/
-*.log
-*.csv
-*.diff
-debug_output*.txt
-comparison_report*.csv
-semantic_report*.csv
-differences_summary.txt
-orig_setscores.txt
-ref_setscores.txt
-/test_*.pgn
-/test_*.trl
-examples/*_rt.*
-examples/*_rt_*.*
-examples/*_roundtrip.*
-examples/*_rt_roundtrip.*
-examples/*_rt_rt.*
-*_output*.pgn
-_backup_*.*
-# Dependencies
+### Node/TypeScript
 node_modules/
 package-lock.json
-
-# Build outputs
 dist/
 build/
-*.js
+types/
 *.js.map
-!examples/*.js
 
-# Temporary files
-*.tmp
-*.temp
-.DS_Store
-Thumbs.db
+### Web client artifacts
+web/dist/
+web/bundles/
+web.bundle.js
+web/vendor/stockfish/
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+### Server (dev-only) outputs
+server/.cache/
+server/.tmp/
 
-# Python
+### Python
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-pip-log.txt
-pip-delete-this-directory.txt
 
-# Analysis reports
+### Logs and temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tmp
+*.temp
+
+### OS/IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+
+### Reports and generated data
 semantic_report*.csv
 comparison_report*.csv
 differences_summary.txt
-*_filtered.pgn
-*_nohdr.pgn
-ref_*.pgn
-orig_setscores.txt
-ref_setscores.txt
 debug_*.txt
 debug_output*.txt
 
-# Test outputs
+### Test and example artifacts
 test_output/
 *.test.trl
 *.test.pgn
 test_*.trl
 test_*.pgn
-
-# Example scratch files
+examples/*_rt.*
+examples/*_rt_*.**
+examples/*_roundtrip.*
+examples/*_rt_roundtrip.*
+examples/*_rt_rt.*
 examples/* copy*.pgn
+*_filtered.pgn
+*_nohdr.pgn
+ref_*.pgn
+*_output*.pgn
+_backup_*.*
 
-# Log files
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
+### Misc
 coverage/
-
-# nyc test coverage
-.nyc_output
-
-# Dependency directories
+.nyc_output/
 jspm_packages/
-
-# Optional npm cache directory
-.npm
-
-# Optional REPL history
+.npm/
 .node_repl_history
-
-# Output of 'npm pack'
 *.tgz
-
-# Yarn Integrity file
 .yarn-integrity
-
-# dotenv environment variables file
 .env
-
-# Mac
-.DS_Store
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# Linux
 .directory
 .Trash-*

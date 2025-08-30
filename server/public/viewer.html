@@ -1,0 +1,145 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Replay & Convert (PGN ⇄ TRL)</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+      textarea { width: 100%; height: 180px; }
+      .row { display:flex; gap:.75rem; align-items: center; flex-wrap: wrap; }
+      .col { flex: 1; min-width: 320px; }
+      .panel { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; }
+      .btn { padding: .5rem 1rem; cursor: pointer; }
+      .muted { color: #666; }
+      #moves { max-height: 300px; overflow:auto; background:#fafafa; padding:.5rem; border-radius:6px; }
+      .move { padding: .1rem .25rem; border-radius: 4px; cursor: pointer; }
+      .move.active { background: #def; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js" integrity="sha512-pZTyU9gSJAX0f8m3jqGzJY8a4YbIQOQzR2JfU7qk5Q7D1rBRbWv0n9cMjgM9oMHEr2PX6/6qDJmX0m1kQZ4t3A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="module" src="https://unpkg.com/chessboard-element?module"></script>
+  </head>
+  <body>
+    <h1>Replay & Convert (PGN ⇄ TRL)</h1>
+    <p class="muted">Paste PGN or TRL. Convert on the server, then replay PGN locally.</p>
+    <div class="row">
+      <div class="col panel">
+        <div class="row">
+          <label><input type="radio" name="mode" value="pgn" checked> PGN → TRL</label>
+          <label><input type="radio" name="mode" value="trl"> TRL → PGN</label>
+        </div>
+        <textarea id="input" placeholder="Paste PGN or TRL here..."></textarea>
+        <div class="row">
+          <button id="convert" class="btn">Convert</button>
+          <button id="loadpgn" class="btn">Load PGN (no convert)</button>
+        </div>
+        <h3>Converted Output</h3>
+        <textarea id="output" readonly></textarea>
+      </div>
+      <div class="col panel">
+        <div class="row" style="align-items:flex-start">
+          <div>
+            <chess-board id="board" style="width: 420px; max-width: 100%"></chess-board>
+            <div style="margin-top:.5rem; display:flex; gap:.5rem; justify-content:center">
+              <button id="backAll" class="btn">⏮</button>
+              <button id="back" class="btn">◀</button>
+              <button id="play" class="btn">▶</button>
+              <button id="pause" class="btn">⏸</button>
+              <button id="forward" class="btn">▶</button>
+              <button id="forwardAll" class="btn">⏭</button>
+            </div>
+          </div>
+          <div style="flex:1">
+            <h4>Moves</h4>
+            <div id="moves"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (s)=>document.querySelector(s);
+      function mode(){ return document.querySelector('input[name="mode"]:checked').value; }
+      const board = $('#board');
+      let game = new Chess();
+      let sanMoves = [];
+      let idx = 0;
+      let timer = null;
+
+      function renderBoard(){ board.setAttribute('position', game.fen()); }
+      function renderMoves(){
+        const cont = $('#moves');
+        cont.innerHTML = '';
+        sanMoves.forEach((m,i)=>{
+          const span = document.createElement('span');
+          span.textContent = (i%2===0? Math.floor(i/2)+1 + '. ' : '') + m + ' ';
+          span.className = 'move' + (i<idx ? ' active' : '');
+          span.onclick = ()=>{ goTo(i+1); };
+          cont.appendChild(span);
+        });
+      }
+      function goTo(n){
+        game.reset();
+        idx = Math.max(0, Math.min(n, sanMoves.length));
+        for(let i=0;i<idx;i++){ game.move(sanMoves[i]); }
+        renderBoard();
+        renderMoves();
+      }
+      function step(dir){
+        if(dir>0){ if(idx < sanMoves.length){ game.move(sanMoves[idx++]); } }
+        else { if(idx>0){ game.undo(); idx--; } }
+        renderBoard();
+        renderMoves();
+      }
+      $('#back').onclick = ()=> step(-1);
+      $('#forward').onclick = ()=> step(1);
+      $('#backAll').onclick = ()=> goTo(0);
+      $('#forwardAll').onclick = ()=> goTo(sanMoves.length);
+      $('#play').onclick = ()=>{ if(timer) return; timer=setInterval(()=>{ if(idx>=sanMoves.length){ clearInterval(timer); timer=null; return; } step(1); }, 800); };
+      $('#pause').onclick = ()=>{ if(timer){ clearInterval(timer); timer=null; } };
+
+      async function toTrl(pgn){ const r = await fetch('/api/convert', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ inputType:'pgn', data:pgn })}); const j = await r.json(); if(!r.ok) throw new Error(j.error||r.statusText); return j.output; }
+      async function toPgn(trl){ const r = await fetch('/api/convert', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ inputType:'trl', data:trl })}); const j = await r.json(); if(!r.ok) throw new Error(j.error||r.statusText); return j.output; }
+
+      function extractSANFromPGN(pgn){
+        // Use chess.js to load, then capture history list
+        const tmp = new Chess();
+        const ok = tmp.load_pgn(pgn, { sloppy: true });
+        if(!ok) throw new Error('Invalid PGN');
+        const hist = tmp.history(); // SAN strings
+        return hist;
+      }
+
+      async function loadPGN(pgn){
+        sanMoves = extractSANFromPGN(pgn);
+        game = new Chess();
+        idx = 0;
+        renderBoard();
+        renderMoves();
+      }
+
+      $('#convert').onclick = async ()=>{
+        const input = $('#input').value;
+        const m = mode();
+        try{
+          if(m==='pgn'){
+            const trl = await toTrl(input);
+            $('#output').value = trl;
+            await loadPGN(input); // Also load original PGN for replay
+          } else {
+            const pgn = await toPgn(input);
+            $('#output').value = pgn;
+            await loadPGN(pgn);
+          }
+        } catch(e){ alert('Error: '+ e.message); }
+      };
+
+      $('#loadpgn').onclick = async ()=>{
+        const input = $('#input').value;
+        try { await loadPGN(input); } catch(e){ alert('Invalid PGN: ' + e.message); }
+      };
+
+      renderBoard();
+    </script>
+  </body>
+  </html>

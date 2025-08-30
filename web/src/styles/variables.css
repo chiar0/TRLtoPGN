@@ -1,0 +1,13 @@
+/* CSS Variables & Root Styles */
+:root {
+  --bg: #0b1020;
+  --panel: #121a2f;
+  --muted: #94a3b8;
+  --text: #e2e8f0;
+  --accent: #4f46e5;
+  --border: #1e293b;
+}
+
+* {
+  box-sizing: border-box;
+}

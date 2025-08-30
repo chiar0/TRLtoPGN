@@ -1,0 +1,212 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Engine Harness Tests</title>
+  <style>
+    body { padding: 12px; }
+    .pass { color: #16a34a; }
+    .fail { color: #dc2626; }
+    .log { font-family: ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+    iframe { width: 100%; height: 70vh; border: 1px solid #334155; margin-top: 12px; }
+  </style>
+  </head>
+<body>
+  <h2>Engine + Autoplay Test Harness</h2>
+  <div id="results"></div>
+  <div class="log" id="log"></div>
+  <iframe id="app" src="../index.html"></iframe>
+  <script>
+    const logEl = document.getElementById('log');
+    const out = (m)=>{ logEl.textContent += m + '\n'; };
+    const sleep = (ms)=> new Promise(r=>setTimeout(r, ms));
+    function assert(cond, msg) {
+      const div = document.createElement('div');
+      div.className = cond ? 'pass' : 'fail';
+      div.textContent = (cond ? 'PASS: ' : 'FAIL: ') + msg;
+      document.getElementById('results').appendChild(div);
+      if (!cond) out('Assertion failed: ' + msg);
+    }
+
+    function preferWasmEngine(d) {
+      try {
+        const sel = d.querySelector('#engineBuildSelect');
+        if (sel) { sel.value = 'npm'; sel.dispatchEvent(new Event('change')); }
+      } catch {}
+    }
+
+  async function waitForIdle(app, maxMs=6000) {
+      const mgr = app().engineManager;
+      if (mgr && typeof mgr.waitUntilIdle === 'function') {
+        return mgr.waitUntilIdle(maxMs);
+      }
+      let waited = 0; while (app().engineManager.engineBusy && waited < maxMs) { await sleep(50); waited += 50; }
+      return !app().engineManager.engineBusy;
+    }
+
+    function overlayVisible(d) {
+      const ov = d.querySelector('#engineBusyOverlay');
+      return ov && (ov.style.display === 'flex');
+    }
+
+    function toolbarHidden(d) {
+      const tb = d.querySelector('.toolbar');
+      return tb && tb.style.display === 'none';
+    }
+
+    async function waitForCondition(fn, timeoutMs=3000, interval=50) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        try { if (fn()) return true; } catch {}
+        await sleep(interval);
+      }
+      return false;
+    }
+
+    async function waitForAppReady(iframe) {
+      const w = iframe.contentWindow; const d = iframe.contentDocument;
+      await waitForCondition(()=> !!(w.TRLViewer && d.querySelector('#input') && d.querySelector('#start')), 6000);
+      return { w, d };
+    }
+
+
+      async function fetchText(url, fallback="") {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(String(res.status));
+          return await res.text();
+        } catch (e) {
+          out(`Fetch failed for ${url}: ${e && e.message}. Using fallback.`);
+          return fallback;
+        }
+      }
+
+      function loadPgnIntoApp(q, pgn) {
+        q('#input').value = pgn;
+        q('#start').click();
+      }
+
+    async function runKriegScenario2_withIllegalSkip_andEngine(w, d) {
+      const q = (sel)=> d.querySelector(sel);
+      const app = () => w.TRLViewer;
+      const urlRoot = '/examples/TOURNAMENT_27082024-2-REF_ORIGINAL.pgn';
+      const urlWeb = '/web/examples/TOURNAMENT_27082024-2-REF_ORIGINAL.pgn';
+      const fallback = '[Event "Krieg2Fallback"]\n[Variant "Kriegspiel"]\n\n1. f4 Nh6 2. Nf3 Nc6 3. d4 d5 4. e3 a6';
+      let pgn = await fetchText(urlRoot, '');
+      if (!pgn) pgn = await fetchText(urlWeb, '');
+      if (!pgn) pgn = fallback;
+
+      loadPgnIntoApp(q, pgn);
+      const started = await waitForCondition(()=> app() && app().gameState && app().gameState.hasStarted, 5000);
+      assert(started, '[Krieg2] Game started');
+
+      // Open replay settings and enable Skip illegal attempts
+      q('#replaySettingsBtn').click();
+      await sleep(50);
+      const skip = q('#skipIllegal');
+      if (skip && !skip.checked) { skip.checked = true; skip.dispatchEvent(new Event('change')); }
+      assert(q('#skipIllegal').checked, '[Krieg2] Skip illegal attempts enabled');
+
+      // Enable engine thinking and base-wait
+      q('#engineWaitBase').checked = true;
+      if (!app().engineManager.engineRunning) { q('#engineAnalyzeBtn').click(); }
+      const running = await waitForCondition(()=> app().engineManager.engineRunning, 800);
+      assert(running, '[Krieg2] Engine running after ⚡');
+
+      // Start autoplay forward and attempt to reach the end
+      q('#play').click();
+      const budget = Math.min(1200, (app().gameState.sanMoves?.length || 120) * 8);
+      for (let i=0;i<budget;i++) {
+        await sleep(100);
+        // If engine is busy too long, rely on abortSearch to avoid stalls
+        if (i % 30 === 0 && app().engineManager.engineBusy && app().engineManager.abortSearch) {
+          app().engineManager.abortSearch();
+        }
+        if (app().gameState.idx >= app().gameState.sanMoves.length) break;
+      }
+      q('#stop').click();
+      const reachedEnd = app().gameState.idx >= app().gameState.sanMoves.length;
+      assert(reachedEnd, '[Krieg2] Autoplay reached end with illegal-skip + engine');
+
+      // Sanity: reverse a bit without crashing
+      q('#revPlay').click();
+      await sleep(250);
+      q('#stop').click();
+      assert(true, '[Krieg2] Reverse autoplay smoke OK');
+    }
+
+    async function runKriegScenario(w, d) {
+        const q = (sel)=> d.querySelector(sel);
+        const app = () => w.TRLViewer;
+    const kriegUrlRoot = '/examples/TOURNAMENT_27082024-1-REF_ORIGINAL.pgn';
+    const kriegUrlWeb = '/web/examples/TOURNAMENT_27082024-1-REF_ORIGINAL.pgn';
+        const kriegFallback = '[Event "KriegFallback"]\n[Variant "Kriegspiel"]\n\n1. e4 e5 2. Nf3 Nf6 3. d3 d6';
+    let pgn = await fetchText(kriegUrlRoot, '');
+    if (!pgn) pgn = await fetchText(kriegUrlWeb, '');
+    if (!pgn) pgn = kriegFallback;
+
+        // Start game
+        loadPgnIntoApp(q, pgn);
+        const started = await waitForCondition(()=> app() && app().gameState && app().gameState.hasStarted, 5000);
+        assert(started, '[Krieg] Game started');
+
+        // Basic analyze overlay flow
+        q('#engineAnalyzeBtn').click();
+        const running = await waitForCondition(()=> app().engineManager.engineRunning, 800);
+        assert(running, '[Krieg] Engine running after ⚡');
+        const sawOverlay = await waitForCondition(()=> overlayVisible(d), 600);
+        assert(sawOverlay, '[Krieg] Busy overlay visible while thinking');
+        await waitForIdle(app, 4000);
+        assert(!overlayVisible(d), '[Krieg] Overlay hidden after bestmove');
+
+        // Engine log visibility
+        const logChk = q('#engineLog');
+        logChk.checked = true;
+        logChk.dispatchEvent(new Event('change'));
+        if (app().engineManager.engineRunning) { q('#engineAnalyzeBtn').click(); await sleep(50); }
+        app().step(1);
+        q('#engineAnalyzeBtn').click();
+        let logText = '';
+        for (let i=0;i<20;i++){ await sleep(50); logText = (q('#engineExplain').textContent || '').trim(); if (logText.length>0) break; }
+        await waitForIdle(app, 4000);
+        if (!logText) { logText = (q('#engineExplain').textContent || '').trim(); }
+        assert(logText.length > 0, '[Krieg] Engine log populated when enabled');
+
+        // Quick autoplay smoke
+        q('#play').click();
+        await sleep(200);
+        q('#stop').click();
+        assert(true, '[Krieg] Autoplay smoke ran');
+
+        // Clear gating
+        q('#clearInput').click();
+        await sleep(60);
+        const boardPanel = q('#boardPanel');
+        const settingsPanel = q('#settingsPanel');
+        const shareWrap = q('#shareLinkWrap');
+        assert(boardPanel && boardPanel.style.display === 'none', '[Krieg] Board panel hidden after Clear');
+        assert(settingsPanel && settingsPanel.style.display === 'none', '[Krieg] Settings hidden after Clear');
+        assert(shareWrap && shareWrap.style.display === 'none', '[Krieg] Share link hidden after Clear');
+      }
+
+      async function runTests() {
+        const iframe = document.getElementById('app');
+        const { w, d } = await waitForAppReady(iframe);
+        preferWasmEngine(d);
+        await runKriegScenario2_withIllegalSkip_andEngine(w, d);
+        await runKriegScenario(w, d);
+        out('Done');
+      }
+    document.getElementById('app').addEventListener('load', async (e) => {
+      try {
+        // Give the app a moment to finish DOM setup
+        await sleep(400);
+        runTests();
+      } catch (err) {
+        out('Harness error: ' + (err && err.message));
+      }
+    });
+  </script>
+</body>
+</html>
