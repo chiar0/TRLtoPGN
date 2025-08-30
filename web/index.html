@@ -1,0 +1,237 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TRL ⇄ PGN Viewer</title>
+    <style>
+      :root{ --bg:#0b1020; --panel:#121a2f; --muted:#94a3b8; --text:#e2e8f0; --accent:#4f46e5; --border:#1e293b; }
+      *{ box-sizing: border-box; }
+      body{ margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; background:linear-gradient(180deg,#0b1020,#0b1020 200px,#0d152c); color:var(--text); }
+      header{ padding:24px 16px; border-bottom:1px solid var(--border); background:rgba(10,14,28,.8); position:sticky; top:0; backdrop-filter:saturate(160%) blur(6px); }
+      .container{ max-width:1100px; margin:0 auto; }
+      h1{ margin:0 0 8px 0; font-size:20px; letter-spacing:.2px; font-weight:600; }
+      .sub{ margin:0; color:var(--muted); font-size:13px; }
+      main{ padding:24px 16px; }
+      .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+      @media (max-width: 950px){ .grid{ grid-template-columns:1fr; } }
+      .panel{ background:linear-gradient(180deg,#0e162b,#0d1428); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow: 0 1px 0 rgba(255,255,255, .03) inset, 0 10px 40px rgba(0,0,0,.35); }
+      .panel h2{ margin:0 0 10px 0; font-size:16px; font-weight:600; }
+      .controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+      .controls .spacer{ flex:1; }
+      textarea{ width:100%; min-height:180px; background:#0b1222; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px; font-size:13px; resize:vertical; }
+      input[type="file"]{ display:none; }
+      .btn{ appearance:none; border:none; padding:10px 14px; border-radius:10px; background: #1b2544; color: var(--text); font-weight:600; letter-spacing:.2px; cursor:pointer; border:1px solid #2a355c; transition: all .15s ease; }
+      .btn:hover{ background:#212e57; transform: translateY(-1px); }
+      .btn.primary{ background:linear-gradient(180deg,#5258f2,#464ce2); border-color:#4f46e5; }
+      .btn.primary:hover{ filter: brightness(1.05); }
+      .btn.ghost{ background: transparent; border-color: #223059; }
+      .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .small{ font-size:12px; color:var(--muted); }
+      .toolbar{ display:flex; gap:8px; justify-content:center; margin-top:8px; }
+      #moves{ max-height: 320px; overflow:auto; background:#0b1222; border:1px solid var(--border); border-radius:10px; padding:8px; }
+      .move{ padding: 2px 6px; border-radius: 6px; cursor: pointer; display:inline-block; margin:1px; color:#cbd5e1; }
+      .move.active{ background: rgba(79,70,229,.18); color: #e7e9ff; }
+      chess-board{ width: 460px; max-width: 100%; }
+      footer{ text-align:center; padding:18px; color:var(--muted); font-size:12px; }
+      .tag{ display:inline-block; background:#0f1a36; border:1px solid #263567; color:#9fb4ff; font-weight:600; padding:2px 8px; border-radius:999px; font-size:12px; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="module" src="https://unpkg.com/chessboard-element?module"></script>
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <h1>TRL ⇄ PGN Viewer</h1>
+        <p class="sub">Client‑side only. Paste text or load a file. Convert as needed and replay on the board.</p>
+      </div>
+    </header>
+    <main>
+      <div class="container grid">
+        <section class="panel">
+          <h2>Input</h2>
+          <div class="controls">
+            <span class="tag" id="inputTag">Auto‑detect</span>
+            <div class="spacer"></div>
+            <label class="btn ghost" for="file">Load File</label>
+            <input id="file" type="file" accept=".pgn,.trl,.txt" />
+          </div>
+          <textarea id="input" placeholder="Paste PGN or TRL here..."></textarea>
+          <div class="row" style="margin-top:8px">
+            <button id="start" class="btn primary">Start ▶</button>
+            <button id="downloadAlt" class="btn">Download TRL/PGN</button>
+            <span id="status" class="small"></span>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="row" style="align-items:flex-start">
+            <div>
+              <chess-board id="board"></chess-board>
+              <div class="toolbar">
+                <button id="backAll" class="btn">⏮</button>
+                <button id="back" class="btn">◀</button>
+                <button id="play" class="btn">▶</button>
+                <button id="pause" class="btn">⏸</button>
+                <button id="forward" class="btn">▶</button>
+                <button id="forwardAll" class="btn">⏭</button>
+              </div>
+            </div>
+            <div style="flex:1">
+              <h2>Moves</h2>
+              <div id="moves"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <footer>
+      Built for client‑side use. No server required.
+    </footer>
+
+    <script type="module">
+      import { ludiiToPgn, pgnToTrl } from '../src/conversion.ts';
+      const $ = (s)=>document.querySelector(s);
+      const input = $('#input');
+      const inputTag = $('#inputTag');
+      const file = $('#file');
+      const board = $('#board');
+      const status = $('#status');
+      const downloadAlt = $('#downloadAlt');
+      let game = new Chess();
+      let sanMoves = [];
+      let idx = 0;
+      let timer = null;
+      let lastInputType = null; // 'pgn' | 'trl'
+      let lastConverted = null; // string of the alternate format
+
+      function detectType(text){
+        if(!text || !text.trim()) return null;
+        // TRL starts with 'game=/lud' or contains 'Move=[' lines
+        if (/^game=\/lud\//.test(text.trim()) || /\bMove=\[/.test(text)) return 'trl';
+        // PGN has headers like [Event "..."] or move numbers like '1.'
+        if (/^\s*\[\w+\s+"/.test(text) || /\b1\./.test(text)) return 'pgn';
+        return null;
+      }
+
+      function setTag(type){
+        inputTag.textContent = type ? (type.toUpperCase()) : 'Auto‑detect';
+      }
+
+      function extractSANFromPGN(pgn){
+        const tmp = new Chess();
+        const ok = tmp.load_pgn(pgn, { sloppy: true });
+        if(!ok) throw new Error('Invalid PGN');
+        return tmp.history();
+      }
+
+      function renderBoard(){ board.setAttribute('position', game.fen()); }
+      function renderMoves(){
+        const cont = $('#moves');
+        cont.innerHTML = '';
+        sanMoves.forEach((m,i)=>{
+          const span = document.createElement('span');
+          span.textContent = (i%2===0? Math.floor(i/2)+1 + '. ' : '') + m + ' ';
+          span.className = 'move' + (i<idx ? ' active' : '');
+          span.onclick = ()=>{ goTo(i+1); };
+          cont.appendChild(span);
+        });
+      }
+      function goTo(n){
+        game.reset();
+        idx = Math.max(0, Math.min(n, sanMoves.length));
+        for(let i=0;i<idx;i++){ game.move(sanMoves[i]); }
+        renderBoard();
+        renderMoves();
+      }
+      function step(dir){
+        if(dir>0){ if(idx < sanMoves.length){ game.move(sanMoves[idx++]); } }
+        else { if(idx>0){ game.undo(); idx--; } }
+        renderBoard();
+        renderMoves();
+      }
+      $('#back').onclick = ()=> step(-1);
+      $('#forward').onclick = ()=> step(1);
+      $('#backAll').onclick = ()=> goTo(0);
+      $('#forwardAll').onclick = ()=> goTo(sanMoves.length);
+      $('#play').onclick = ()=>{ if(timer) return; timer=setInterval(()=>{ if(idx>=sanMoves.length){ clearInterval(timer); timer=null; return; } step(1); }, 700); };
+      $('#pause').onclick = ()=>{ if(timer){ clearInterval(timer); timer=null; } };
+
+      file.addEventListener('change', async (e)=>{
+        const f = e.target.files?.[0];
+        if(!f) return;
+        const text = await f.text();
+        input.value = text;
+        const t = detectType(text);
+        lastInputType = t; setTag(t);
+        status.textContent = 'Loaded file: ' + f.name;
+      });
+
+      input.addEventListener('input', ()=>{
+        const t = detectType(input.value);
+        lastInputType = t; setTag(t);
+      });
+
+      async function ensurePGN(text){
+        const type = lastInputType ?? detectType(text);
+        if(type === 'pgn') return text;
+        if(type === 'trl') {
+          const pgn = ludiiToPgn(text, 'pasted.trl', 'Client Game', 'Player 1', 'Player 2');
+          lastConverted = pgn; // for download button
+          return pgn;
+        }
+        throw new Error('Unable to detect input type');
+      }
+
+      async function ensureAlt(text){
+        const type = lastInputType ?? detectType(text);
+        if(type === 'pgn') {
+          const trl = pgnToTrl(text);
+          return trl;
+        }
+        if(type === 'trl') {
+          const pgn = ludiiToPgn(text, 'pasted.trl', 'Client Game', 'Player 1', 'Player 2');
+          return pgn;
+        }
+        throw new Error('Unable to detect input type');
+      }
+
+      $('#start').onclick = async ()=>{
+        try{
+          status.textContent = '';
+          const text = input.value;
+          const pgn = await ensurePGN(text);
+          const tmp = new Chess();
+          const ok = tmp.load_pgn(pgn, { sloppy: true });
+          if(!ok) throw new Error('Invalid PGN generated');
+          sanMoves = tmp.history();
+          game = new Chess();
+          idx = 0;
+          renderBoard();
+          renderMoves();
+          status.textContent = 'Loaded ' + sanMoves.length + ' moves';
+          // Prepare alternate for download
+          lastConverted = await ensureAlt(text);
+        } catch(e){
+          status.textContent = 'Error: ' + e.message;
+        }
+      };
+
+      downloadAlt.onclick = ()=>{
+        const type = lastInputType ?? detectType(input.value);
+        let data = lastConverted;
+        if(!data){ status.textContent = 'No converted data yet. Click Start first.'; return; }
+        const ext = type === 'pgn' ? 'trl' : 'pgn';
+        const blob = new Blob([data], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `converted.${ext}`;
+        a.click();
+        setTimeout(()=> URL.revokeObjectURL(a.href), 500);
+      };
+
+      // Init
+      setTag(null);
+      renderBoard();
+    </script>
+  </body>
+</html>
