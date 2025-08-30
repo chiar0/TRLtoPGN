@@ -13,8 +13,8 @@ A comprehensive toolkit for bi-directional conversion between Ludii trial files 
 ### Prerequisites
 
 **For TypeScript version (recommended for performance):**
-- Node.js 16+ 
-- TypeScript 4.5+
+- Node.js 18+
+- TypeScript 5+
 - ts-node for direct execution
 
 **For Python version (GUI support available):**
@@ -33,6 +33,13 @@ npm install
 
 # Python setup (no additional dependencies required)
 # Built-in libraries are sufficient
+```
+
+### Clean Up
+
+```bash
+# Remove build outputs, logs, reports and roundtrip artifacts
+npm run clean
 ```
 
 ## 📖 Usage Guide

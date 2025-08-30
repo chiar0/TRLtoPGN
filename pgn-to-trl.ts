@@ -415,6 +415,34 @@ function generateTrlHeader(): string[] {
 }
 
 /**
+ * Generates the static header for a standard Chess TRL file.
+ */
+function generateChessTrlHeader(): string[] {
+    const lines: string[] = [];
+    lines.push('game=/lud/board/war/replacement/checkmate/chess/Chess.lud');
+    lines.push('START GAME OPTIONS');
+    lines.push('END GAME OPTIONS');
+    // Match reference TRL RNG exactly
+    lines.push('RNG internal state=-1,90,-123,-103,-60,-79,121,-108');
+
+    const board = createInitialBoard();
+    const addOrderAlg: string[] = [];
+    for (const f of ['a','b','c','d','e','f','g','h']) addOrderAlg.push(`${f}2`);
+    for (const f of ['a','b','c','d','e','f','g','h']) addOrderAlg.push(`${f}7`);
+    addOrderAlg.push('a1','h1','b1','g1','c1','f1','d1','e1');
+    addOrderAlg.push('a8','h8','b8','g8','c8','f8','d8','e8');
+
+    for (const square of addOrderAlg) {
+        const pieceId = board[square];
+        if (!pieceId) continue;
+        const coord = algebraicToLudii(square);
+        const state = (LUDII_PIECE_TO_PGN[pieceId] === 'R' || LUDII_PIECE_TO_PGN[pieceId] === 'K') ? `,state=1` : '';
+        lines.push(`Move=[Move:mover=0,from=${coord},to=${coord},actions=[Add:type=Cell,to=${coord},what=${pieceId}${state}]]`);
+    }
+    return lines;
+}
+
+/**
  * Generates a TRL line for an illegal move attempt.
  */
 function generateIllegalTrlMove(move: string, player: number, board?: Board): string {
@@ -632,9 +660,97 @@ function generateTrlMove(board: Board, from: string, to: string, promotion: stri
 }
 
 /**
+ * Generates a TRL line for a legal move in standard Chess (no hidden info, no umpire notes).
+ */
+// Helper to check if a K/R is moving from its initial square (to emit SetState)
+function isInitialKingOrRookSquare(pieceLetter: string, player: number, from: string): boolean {
+    if (pieceLetter === 'K') {
+        return from === (player === 1 ? 'e1' : 'e8');
+    }
+    if (pieceLetter === 'R') {
+        const initialSquares = player === 1 ? ['a1','h1'] : ['a8','h8'];
+        return initialSquares.includes(from);
+    }
+    return false;
+}
+
+function generateTrlMoveChess(board: Board, from: string, to: string, promotion: string | null, player: number, flags?: { wk: boolean; bk: boolean; wrA: boolean; wrH: boolean; brA: boolean; brH: boolean }): string {
+    const fromCoord = algebraicToLudii(from);
+    const toCoord = algebraicToLudii(to);
+    const movingPiece = board[from];
+    const pieceLetter = LUDII_PIECE_TO_PGN[movingPiece];
+    const isCastle = pieceLetter === 'K' && Math.abs(from.charCodeAt(0) - to.charCodeAt(0)) === 2;
+    const fromRank = parseInt(from[1], 10);
+    const toRank = parseInt(to[1], 10);
+    const enPassantCapture = (pieceLetter === 'P' && from[0] !== to[0] && !board[to]);
+    const capturedSquare = board[to] ? to : (enPassantCapture ? (to[0] + from[1]) : null);
+
+    const actions: string[] = [];
+    // Remove captured first (if any), using 'to=' like reference TRL
+    if (capturedSquare) {
+        const capCoord = algebraicToLudii(capturedSquare);
+        actions.push(`Remove:type=Cell,to=${capCoord}`);
+        // In reference TRL, any capture shows SetCounter before Move
+        actions.push(`SetCounter:counter=-1`);
+        actions.push(`Move:typeFrom=Cell,from=${fromCoord},typeTo=Cell,to=${toCoord},decision=true`);
+    } else {
+        // Non-capture: Move first
+        actions.push(`Move:typeFrom=Cell,from=${fromCoord},typeTo=Cell,to=${toCoord},decision=true`);
+        // Pawn double-step: SetPending mid-square, then SetCounter
+        if (pieceLetter === 'P') {
+            if (Math.abs(toRank - fromRank) === 2) {
+                const midRank = (fromRank + toRank) / 2;
+                const midAlg = `${from[0]}${midRank}`;
+                const midCoord = algebraicToLudii(midAlg);
+                actions.push(`SetPending:value=${midCoord}`);
+            }
+            actions.push(`SetCounter:counter=-1`);
+        }
+    }
+
+    // Castling rook move
+    if (isCastle) {
+        const rank = from[1];
+        if (to[0] === 'g') { // kingside
+            const rookFrom = algebraicToLudii('h' + rank);
+            const rookTo = algebraicToLudii('f' + rank);
+            actions.push(`Move:typeFrom=Cell,from=${rookFrom},typeTo=Cell,to=${rookTo},decision=true`);
+        } else { // queenside
+            const rookFrom = algebraicToLudii('a' + rank);
+            const rookTo = algebraicToLudii('d' + rank);
+            actions.push(`Move:typeFrom=Cell,from=${rookFrom},typeTo=Cell,to=${rookTo},decision=true`);
+        }
+    }
+
+    // Promotion
+    if (promotion) {
+        const promoId = (player === 1 ? PGN_PIECE_TO_LUDII[promotion].white : PGN_PIECE_TO_LUDII[promotion].black);
+        actions.push(`Promote:type=Cell,to=${toCoord},what=${promoId},decision=true`);
+    }
+
+    // SetState after first King/Rook move from its initial square (only once)
+    if (flags && !promotion) {
+        if (pieceLetter === 'K') {
+            if (player === 1 && from === 'e1' && !flags.wk) { actions.push(`SetState:type=Cell,to=${toCoord},state=0`); flags.wk = true; }
+            if (player === 2 && from === 'e8' && !flags.bk) { actions.push(`SetState:type=Cell,to=${toCoord},state=0`); flags.bk = true; }
+        } else if (pieceLetter === 'R') {
+            if (player === 1) {
+                if (from === 'a1' && !flags.wrA) { actions.push(`SetState:type=Cell,to=${toCoord},state=0`); flags.wrA = true; }
+                if (from === 'h1' && !flags.wrH) { actions.push(`SetState:type=Cell,to=${toCoord},state=0`); flags.wrH = true; }
+            } else {
+                if (from === 'a8' && !flags.brA) { actions.push(`SetState:type=Cell,to=${toCoord},state=0`); flags.brA = true; }
+                if (from === 'h8' && !flags.brH) { actions.push(`SetState:type=Cell,to=${toCoord},state=0`); flags.brH = true; }
+            }
+        }
+    }
+
+    return `Move=[Move:mover=${player},from=${fromCoord},to=${toCoord},actions=[${actions.join('],[')}]]`;
+}
+
+/**
  * Generates the TRL footer based on the game result.
  */
-function generateTrlFooter(result: string): string[] {
+function generateTrlFooter(result: string, isKrieg: boolean): string[] {
     let winner = -1;
     if (result === '1-0') winner = 1;
     else if (result === '0-1') winner = 2;
@@ -642,13 +758,13 @@ function generateTrlFooter(result: string): string[] {
     
     const base = [] as string[];
     if (winner !== -1) {
-        base.push(`numInitialPlacementMoves=64`);
+        base.push(`numInitialPlacementMoves=${isKrieg ? 64 : 32}`);
         base.push(`winner=${winner}`);
         base.push(`endtype=NaturalEnd`);
-        base.push(`rankings=0.0,2.0,1.0`);
+        base.push(`rankings=0.0,1.0,2.0`);
         base.push(`SANDBOX=false`);
         // Always include LUDII version as the final footer line to match repository files
-        base.push(`LUDII_VERSION=1.3.13`);
+        base.push(`LUDII_VERSION=1.3.14`);
     }
     return base;
 }
@@ -757,13 +873,12 @@ function parsePgn(pgnContent: string) {
 
 function pgnToTrl(pgnContent: string, refPatterns?: { levelToSet: Set<string>, enpassBefore: Set<string>, enpassAfter: Set<string> }): string {
     const { header, moves } = parsePgn(pgnContent);
-
-    if (!header.Variant || !header.Variant.includes('Kriegspiel')) {
-        throw new Error('This script only supports Kriegspiel PGNs.');
-    }
+    const isKrieg = !!(header.Variant && header.Variant.includes('Kriegspiel'));
     
-    const trlLines = generateTrlHeader();
+    const trlLines = isKrieg ? generateTrlHeader() : generateChessTrlHeader();
     let board = createInitialBoard();
+    // Track first moves of kings/rooks for Chess SetState emission
+    const flags: { wk: boolean; bk: boolean; wrA: boolean; wrH: boolean; brA: boolean; brH: boolean } = { wk: false, bk: false, wrA: false, wrH: false, brA: false, brH: false };
     
     let currentPlayer = 1;
     let currentEnPassant = -1;
@@ -773,9 +888,10 @@ function pgnToTrl(pgnContent: string, refPatterns?: { levelToSet: Set<string>, e
         if (!san) continue;
 
         const comment = moveData.whiteComment || moveData.blackComment;
+        let explicitTries: number | null = null;
         
-        // 1. Process illegal move attempts from the comment. If a ':' exists, attempts follow it; otherwise the whole comment may be attempts.
-        if (comment) {
+        // 1. Kriegspiel-only: illegal attempts from comment
+        if (isKrieg && comment) {
             const colonIndexForAttempts = comment.indexOf(':');
             const attemptsPart = colonIndexForAttempts >= 0 ? comment.slice(colonIndexForAttempts + 1).trim() : comment.trim();
             if (attemptsPart) {
@@ -791,44 +907,50 @@ function pgnToTrl(pgnContent: string, refPatterns?: { levelToSet: Set<string>, e
         // 2. Process the legal move
         const { from, to, promotion } = findMoveSource(board, currentPlayer, san);
         
-        // 3. Process umpire notes and try markers from the comment (before the ':' separator)
-        const umpireNotes: string[] = [];
-        let explicitTries: number | null = null; // P1:, P2:, etc.
-        if (comment) {
-            const colonIndex = comment.indexOf(':');
-            const notesPart = colonIndex >= 0 ? comment.slice(0, colonIndex) : comment;
-            const parts = notesPart.split(',').map((s: string) => s.trim()).filter(Boolean);
-            
-            // Extract P[number]: markers where number = number of tries
-            for (const part of parts) {
-                // Accept both 'Pn' and 'Pn:' tokens
-                const tryMatch = part.match(/^P(\d+):?$/);
-                if (tryMatch) {
-                    const numberOfTries = parseInt(tryMatch[1]);
-                    explicitTries = numberOfTries;
+        if (isKrieg) {
+            // 3. Process umpire notes and try markers from the comment (before the ':' separator)
+            const umpireNotes: string[] = [];
+            if (comment) {
+                const colonIndex = comment.indexOf(':');
+                const notesPart = colonIndex >= 0 ? comment.slice(0, colonIndex) : comment;
+                const parts = notesPart.split(',').map((s: string) => s.trim()).filter(Boolean);
+                // Extract P[number]: markers
+                for (const part of parts) {
+                    const tryMatch = part.match(/^P(\d+):?$/);
+                    if (tryMatch) {
+                        const numberOfTries = parseInt(tryMatch[1]);
+                        explicitTries = numberOfTries;
+                    }
                 }
+                const filtered = parts.filter((p: string) => 
+                    !(/[a-h][1-8]-[a-h][1-8]/i.test(p) ||
+                      /[KQRNBkqrnb]?[a-h][1-8]-[KQRNBkqrnb]?[a-h][1-8]/i.test(p) ||
+                      /^P\d+:?$/.test(p))
+                );
+                umpireNotes.push(...filtered);
             }
-            
-            // Remove any parts that are actually illegal-attempt tokens (square-to-square or with piece letter) or P markers
-            const filtered = parts.filter((p: string) => 
-                !(/[a-h][1-8]-[a-h][1-8]/i.test(p) ||
-                  /[KQRNBkqrnb]?[a-h][1-8]-[KQRNBkqrnb]?[a-h][1-8]/i.test(p) ||
-                  /^P\d+:?$/.test(p))
-            );
-            umpireNotes.push(...filtered);
+            // 4. Generate the TRL line for the legal move (without promotion for now)
+            const res = generateTrlMove(board, from, to, null, currentPlayer, umpireNotes, currentEnPassant, explicitTries);
+            trlLines.push(res.line);
+        } else {
+            // Standard chess move emission
+            const line = generateTrlMoveChess(board, from, to, promotion, currentPlayer, flags);
+            trlLines.push(line);
         }
-
-        // 4. Generate the TRL line for the legal move (without promotion for now)
-        const res = generateTrlMove(board, from, to, null, currentPlayer, umpireNotes, currentEnPassant, explicitTries);
-        trlLines.push(res.line);
 
         // 5. Update board state for the next move
         board = applyMove(board, from, to, promotion, currentPlayer);
-        // update en-passant state
-        currentEnPassant = res.newEnPassant;
+        // update en-passant state (Kriegspiel only semantics used)
+        if (isKrieg) {
+            const fromRank = parseInt(from[1], 10);
+            const toRank = parseInt(to[1], 10);
+            currentEnPassant = (LUDII_PIECE_TO_PGN[board[to]] === 'P' && Math.abs(toRank - fromRank) === 2)
+                ? algebraicToLudii(`${from[0]}${(fromRank + toRank)/2}`)
+                : -1;
+        }
 
-        // 6. If this was a promotion, generate a separate promotion move
-        if (promotion) {
+        // 6. If this was a promotion in Kriegspiel, generate a separate promotion move
+        if (isKrieg && promotion) {
             const promotionRes = generatePromotionMove(to, promotion, currentPlayer, explicitTries);
             trlLines.push(promotionRes);
         }
@@ -837,9 +959,9 @@ function pgnToTrl(pgnContent: string, refPatterns?: { levelToSet: Set<string>, e
         currentPlayer = currentPlayer === 1 ? 2 : 1;
     }
     
-    trlLines.push(...generateTrlFooter(header.Result));
+    trlLines.push(...generateTrlFooter(header.Result, isKrieg));
 
-    return trlLines.join('\n');
+    return trlLines.join('\n') + '\n';
 }
 
 // #endregion
