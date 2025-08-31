@@ -34,7 +34,12 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
 
       - name: Build TypeScript and vendor Stockfish
         run: npm run web:build
