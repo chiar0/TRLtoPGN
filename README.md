@@ -87,9 +87,44 @@ Structure overview:
 	- `clipboard-manager.js`: copy/download (original and converted), filename/extension handling.
 
 Notes:
-- Only one HTML entrypoint exists in the repo: `web/index.html`.
-- Root landing `index.html` has been removed to avoid duplication; host should serve `web/index.html`.
+- Only one HTML entrypoint exists for the client: `web/index.html`.
+- No root-level `index.html` is provided; serve `web/index.html` directly.
 - Build artifacts used by the browser live in `dist/` and `web/dist/` and are ignored by git.
+
+### Deploy on GitHub Pages
+
+Recommended: deploy with GitHub Actions (no committed vendor assets).
+
+1) Enable GitHub Pages
+- Go to Repository Settings → Pages
+- Build and deployment: Source = GitHub Actions
+
+2) The workflow `.github/workflows/pages.yml` is included and will:
+- Install dependencies
+- Run `npm run web:build` (which vendors Stockfish into `web/vendor/stockfish/`)
+- Copy `web/` to `docs/` and upload as the Pages artifact
+- Deploy to Pages automatically on push to `web-client` (and main/master)
+
+3) Push your branch to trigger the deploy:
+```bash
+git add -A
+git commit -m "Build: web client; deploy to Pages"
+git push origin web-client
+```
+
+4) Optional local preview (without committing `docs/`):
+```bash
+npm run web:build
+npm run pages:prepare
+npm run pages:preview
+# open http://localhost:8080/index.html
+```
+
+Notes:
+- The `docs/` folder is git-ignored; Pages content is built in CI.
+- Stockfish JS/WASM files are not tracked in git; they are copied during build.
+
+Server: non richiesto. Il progetto è pensato per uso CLI e Web client.
 
 Engine assets (Stockfish):
 - Stockfish binaries are not committed to the repo. Populate them locally via npm after install:
@@ -103,7 +138,7 @@ Engine assets (Stockfish):
 #### PGN to TRL Conversion
 ```bash
 # Primary method with ts-node loader:
-node --loader ts-node/esm pgn-to-trl.ts -f examples/TOURNAMENT_27082024-2.pgn
+node --loader ts-node/esm pgn-to-trl.ts -f examples/TOURNAMENT_27082024-2-REF_ORIGINAL.pgn
 
 # Expected output:
 # (node:646398) ExperimentalWarning: `--experimental-loader` may be removed in the future...
@@ -111,19 +146,19 @@ node --loader ts-node/esm pgn-to-trl.ts -f examples/TOURNAMENT_27082024-2.pgn
 # Successfully converted. TRL file saved as examples/TOURNAMENT_27082024-2.trl
 
 # Alternative method without warnings (Node.js 18.19+):
-node --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("ts-node/esm", pathToFileURL("./"));' pgn-to-trl.ts -f examples/TOURNAMENT_27082024-2.pgn
+node --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("ts-node/esm", pathToFileURL("./"));' pgn-to-trl.ts -f examples/TOURNAMENT_27082024-2-REF_ORIGINAL.pgn
 
 # Using shell wrapper:
-./pgn-to-trl.sh -f examples/TOURNAMENT_27082024-2.pgn
+./pgn-to-trl.sh -f examples/TOURNAMENT_27082024-2-REF_ORIGINAL.pgn
 ```
 
 #### TRL to PGN Conversion
 ```bash
 # Direct TypeScript execution:
-node --loader ts-node/esm trl-to-pgn.ts -f examples/TOURNAMENT_27082024-1.trl --white "Magnus Carlsen" --black "Hikaru Nakamura"
+node --loader ts-node/esm trl-to-pgn.ts -f examples/TOURNAMENT_27082024-1-REF_ORIGINAL.trl --white "Magnus Carlsen" --black "Hikaru Nakamura"
 
 # Using npm scripts:
-npm run trl-to-pgn -- -f examples/TOURNAMENT_27082024-1.trl --white "Player1" --black "Player2"
+npm run trl-to-pgn -- -f examples/TOURNAMENT_27082024-1-REF_ORIGINAL.trl --white "Player1" --black "Player2"
 
 # Using shell wrapper:
 ./trl-to-pgn.sh -f examples/TOURNAMENT_27082024-1.trl --white "Player 1" --black "Player 2"

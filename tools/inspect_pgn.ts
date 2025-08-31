@@ -5,8 +5,8 @@ import * as path from 'path';
 async function run(file: string){
   const abs = path.resolve(file);
   const text = fs.readFileSync(abs,'utf-8');
-  // Lazy import compiled parsePgn
-  const mod = await import('../dist/pgn-to-trl.js');
+  // Lazy import parsePgn from source (ts-node or compiled dist will resolve)
+  const mod = await import('../pgn-to-trl.js');
   const { header, moves } = mod.parsePgn(text);
   const isKrieg = !!(header.Variant && header.Variant.toLowerCase().includes('krieg'));
   console.log(`File: ${path.basename(abs)} | Variant=${header.Variant || ''} | Krieg=${isKrieg}`);

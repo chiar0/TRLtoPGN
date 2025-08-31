@@ -69,6 +69,12 @@ cd web
 # Use files in web/dist/
 ```
 
+## Deploy (GitHub Pages)
+
+- Pages is deployed by GitHub Actions (`.github/workflows/pages.yml`).
+- It runs `npm run web:build`, then publishes the contents of `web/` as `docs/` artifact.
+- `docs/` is git-ignored; you don't need to commit it.
+
 ## Developer Notes
 
 - ES modules for JS and modular CSS for maintainability.

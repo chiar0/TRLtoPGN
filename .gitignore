@@ -12,6 +12,9 @@ web/bundles/
 web.bundle.js
 web/vendor/stockfish/
 
+### GitHub Pages build output (published by Actions)
+docs/
+
 ### Server (dev-only) outputs
 server/.cache/
 server/.tmp/

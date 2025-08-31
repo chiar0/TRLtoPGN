@@ -24,7 +24,9 @@
     "validate:examples": "bash -lc \"for f in examples/*.{pgn,trl}; do if [ -f \\\"$f\\\" ]; then echo \\\"Validating $f\\\"; node dist/tools/validate_pgn.js \\\"$f\\\" || true; fi; done\"",
     "build": "tsc",
     "web:build": "npm run build && npm run web:vendor && bash -lc 'mkdir -p web/dist && cp -f dist/*.js web/dist/ && cp -f dist/src/*.js web/dist/ || true'",
-    "web:vendor": "bash -lc 'mkdir -p web/vendor/stockfish && (cp -f node_modules/stockfish/stockfish*.js web/vendor/stockfish/ 2>/dev/null || true) && (cp -f node_modules/stockfish/**/*.js web/vendor/stockfish/ 2>/dev/null || true) && (cp -f node_modules/stockfish/**/*.wasm web/vendor/stockfish/ 2>/dev/null || true)'",
+  "pages:prepare": "npm run web:build && bash -lc 'rm -rf docs && mkdir -p docs && touch docs/.nojekyll && cp -R web/* docs/'",
+  "pages:preview": "python3 -m http.server 8080 -d docs",
+  "web:vendor": "bash -lc 'mkdir -p web/vendor/stockfish && (cp -f node_modules/stockfish/stockfish*.js web/vendor/stockfish/ 2>/dev/null || true) && (cp -f node_modules/stockfish/**/*.js web/vendor/stockfish/ 2>/dev/null || true) && (cp -f node_modules/stockfish/**/*.wasm web/vendor/stockfish/ 2>/dev/null || true)'",
     "clean": "rm -rf dist/ *.csv node_modules/.cache temp/ .temp/ *.log *.diff debug_output*.txt comparison_report*.csv semantic_report*.csv differences_summary.txt orig_setscores.txt ref_setscores.txt test_*.pgn test_*.trl examples/*_rt.* examples/*_rt_*.* examples/*_roundtrip.* examples/*_rt_roundtrip.* examples/*_rt_rt.*",
     "semantic-compare": "python3 tools/semantic_compare.py",
     "usage": "./USAGE.sh"

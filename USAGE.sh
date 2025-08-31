@@ -6,10 +6,10 @@ echo "=================================="
 echo
 
 echo "📝 TypeScript Version (Recommended - Reliable Shell Wrappers):"
-echo "  PGN → TRL: ./pgn-to-trl.sh -f examples/TOURNAMENT_27082024-1.pgn"
+echo "  PGN → TRL: ./pgn-to-trl.sh -f examples/TOURNAMENT_27082024-1-REF_ORIGINAL.pgn"
 echo "  TRL → PGN: ./trl-to-pgn.sh -f examples/TOURNAMENT_27082024-1-REF_ORIGINAL.trl"
-echo "  OR Direct: node --loader ts-node/esm pgn-to-trl.ts -f examples/TOURNAMENT_27082024-1.pgn"
-echo "  OR via npm: npm run pgn-to-trl -- -f examples/TOURNAMENT_27082024-1.pgn"
+echo "  OR Direct: node --loader ts-node/esm pgn-to-trl.ts -f examples/TOURNAMENT_27082024-1-REF_ORIGINAL.pgn"
+echo "  OR via npm: npm run pgn-to-trl -- -f examples/TOURNAMENT_27082024-1-REF_ORIGINAL.pgn"
 echo
 
 echo "🐍 Python Version:"
