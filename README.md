@@ -46,14 +46,19 @@ npm run clean
 
 ### Web Viewer (Client-only)
 
-The `web/` client is a single-page, modular viewer for PGN ⇄ TRL conversion and replay. It runs entirely in the browser — no backend required.
+The `web/` client is a single-page viewer for PGN ⇄ TRL conversion and replay. It runs entirely in the browser — no backend required.
 
-Run locally:
+Run locally (pick one):
 
 ```bash
-cd web
+# Option A: serve from repository root
 python3 -m http.server 8080
 # Open http://localhost:8080/web/index.html
+
+# Option B: serve from inside web/
+cd web
+python3 -m http.server 8080
+# Open http://localhost:8080/index.html
 ```
 
 Key functionality:
@@ -85,6 +90,13 @@ Notes:
 - Only one HTML entrypoint exists in the repo: `web/index.html`.
 - Root landing `index.html` has been removed to avoid duplication; host should serve `web/index.html`.
 - Build artifacts used by the browser live in `dist/` and `web/dist/` and are ignored by git.
+
+Engine assets (Stockfish):
+- Stockfish binaries are not committed to the repo. Populate them locally via npm after install:
+	- `npm run web:vendor` to copy the vendored engine JS/WASM to `web/vendor/stockfish/`.
+	- Or `npm run web:build` to compile TypeScript and vendor the engines, then copy app JS to `web/dist/`.
+- The default engine is the single-thread lite build (no SharedArrayBuffer required). Other variants can be selected from the UI and will be loaded on demand.
+- If you serve pages without cross-origin isolation (no COOP/COEP), avoid threaded builds; prefer the default single-thread variants.
 
 ### TypeScript Version (Recommended)
 

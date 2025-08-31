@@ -1,101 +1,76 @@
-# TRL ⇄ PGN Viewer - Struttura Web Riorganizzata
+# TRL ⇄ PGN Viewer — Web App
 
-La parte web del progetto è stata riorganizzata per migliorare la manutenibilità suddividendo il file monolitico originale in moduli più piccoli e gestibili.
+This is the single-page web client for viewing and converting PGN ⇄ TRL. The original monolithic file has been refactored into small, maintainable modules.
 
-## Struttura dei File
+## Directory Structure
 
 ```
 web/
-├── index-original.html     # Copia di backup dell'originale
-├── index.html              # Entrypoint modulare
-├── build.sh               # Script di build
+├── index.html            # Single HTML entrypoint
+├── build.sh              # Simple build helper (optional)
 ├── src/
-│   ├── styles/            # CSS modulari
-│   │   ├── main.css       # Import principale
-│   │   ├── variables.css  # Variabili CSS
-│   │   ├── base.css       # Stili base
-│   │   ├── header.css     # Header e footer
-│   │   ├── layout.css     # Grid e layout
-│   │   ├── panels.css     # Pannelli e contenitori
-│   │   ├── forms.css      # Form e controlli base
-│   │   ├── controls.css   # Controlli player
-│   │   ├── board.css      # Scacchiera
-│   │   ├── moves.css      # Lista mosse e gioco
-│   │   ├── ui-elements.css # Tag, badge, pill
-│   │   └── meta.css       # Barra meta giocatori
-│   └── js/
-│       ├── main.js        # Entry point principale
-│       └── modules/
-│           ├── utils.js            # Utility generali
-│           ├── compression.js      # Compressione/share
-│           ├── game-state.js       # Stato del gioco
-│           ├── header-manager.js   # Gestione header PGN
-│           ├── board-renderer.js   # Rendering scacchiera
-│           ├── file-manager.js     # Gestione file
-│           └── engine-manager.js   # Integrazione Stockfish
-├── dist/                  # File JS transpilati (esistenti)
-└── shims/                 # Shim Node.js (esistenti)
+│   ├── styles/           # Modular CSS
+│   └── js/               # Modular JavaScript
+│       ├── main.js       # App orchestrator
+│       └── modules/      # Feature modules
+│           ├── utils.js
+│           ├── compression.js
+│           ├── game-state.js
+│           ├── header-manager.js
+│           ├── board-renderer.js
+│           ├── file-manager.js
+│           ├── engine-manager.js
+│           ├── ui-visibility.js
+│           ├── share-manager.js
+│           └── clipboard-manager.js
+├── dist/                 # Optional combined assets (ignored by git)
+├── vendor/stockfish/     # Vendored engine builds (ignored by git)
+└── shims/                # Node shims (if needed)
 ```
 
-## Come Usare
+## Run Locally
 
-### Per Sviluppo (Consigliato)
-Usa `index.html` che carica i moduli separati:
+Serve the app with any static server. Two common options:
+
 ```bash
-# Avvia un server locale nella directory web
-python3 -m http.server 8000
-# Apri http://localhost:8000/index.html
+# From repo root
+python3 -m http.server 8080
+# Open http://localhost:8080/web/index.html
+
+# Or from web/
+cd web
+python3 -m http.server 8080
+# Open http://localhost:8080/index.html
 ```
 
-### Per Produzione
-Usa lo script di build per creare una versione ottimizzata:
+## Stockfish Engines
+
+- Engine binaries (JS/WASM) are not committed. Populate them locally:
+
 ```bash
+npm install
+npm run web:vendor   # copies Stockfish builds into web/vendor/stockfish/
+
+# Optional full build
+npm run web:build    # compile TS + vendor engines + copy dist to web/dist
+```
+
+- Default engine is the single-thread lite build (works without SharedArrayBuffer).
+- You can switch variants from the UI; only the selected variant is fetched.
+- If your server is not cross-origin isolated (no COOP/COEP), avoid threaded builds; keep single-thread variants.
+
+## Build (Optional)
+
+The app works with ES modules directly. If you prefer a combined HTML/CSS/JS:
+
+```bash
+cd web
 ./build.sh
-# Usa dist/index.html
+# Use files in web/dist/
 ```
 
-## Vantaggi della Riorganizzazione
+## Developer Notes
 
-### CSS Modulari
-- **Manutenibilità**: Ogni file CSS ha una responsabilità specifica
-- **Riusabilità**: I moduli possono essere importati/esclusi singolarmente
-- **Debug**: Più facile trovare e modificare stili specifici
-
-### JavaScript Modulari
-- **Separazione delle responsabilità**: Ogni modulo gestisce una funzionalità
-- **Testing**: Ogni modulo può essere testato indipendentemente
-- **Estensibilità**: Nuove funzionalità possono essere aggiunte come nuovi moduli
-
-### Struttura dei Moduli JS
-
-1. **utils.js**: Funzioni utility generali, selettori DOM
-2. **compression.js**: Gestione compressione per link condivisi
-3. **game-state.js**: Classe per gestire lo stato del gioco Chess.js
-4. **header-manager.js**: Gestione e editing degli header PGN
-5. **board-renderer.js**: Rendering della scacchiera, overlay, animazioni
-6. **file-manager.js**: Import/export file, conversioni PGN⇄TRL
-7. **engine-manager.js**: Integrazione con Stockfish per analisi
-
-## Compatibilità
-
-✅ **Funzionalità identiche**: Tutte le funzionalità del file originale sono preservate
-✅ **Stesso comportamento**: L'interfaccia e l'esperienza utente rimangono identiche
-✅ **Performance**: Nessun impatto negativo sulle prestazioni
-✅ **Browser support**: Stessa compatibilità browser del file originale
-
-## Migrazione
-
-Per compatibilità, l'originale è stato consolidato. L'entrypoint modulare è `index.html`.
-
-La struttura modularizzata facilita:
-- Aggiunta di nuove funzionalità
-- Fix di bug specifici
-- Personalizzazioni e temi
-- Integrazione con build tool moderni (Vite, Webpack, etc.)
-
-## Note per gli Sviluppatori
-
-- I moduli usano ES6 imports/exports
-- Il CSS usa l'approccio con variabili CSS custom
-- L'architettura è pronta per l'aggiunta di TypeScript
-- Struttura compatibile con bundler moderni
+- ES modules for JS and modular CSS for maintainability.
+- No backend required; everything runs client-side.
+- Designed to integrate with modern bundlers if desired (Vite/Webpack).
