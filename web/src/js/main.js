@@ -114,6 +114,7 @@ const status = $('#status');
 let timer = null;
 let backTimer = null;
 let autoResumeForward = false;
+let autoResumeBackward = false;
 let forwardSpeed = 1;
 let backSpeed = 1;
 let convertTimer = null;
@@ -195,7 +196,10 @@ function renderMoves() {
       const attEl = document.createElement('span');
       attEl.textContent = `↳ ${t}`;
       const isActiveAttempt = (state0 === 'current' && k === showCount0 - 1);
-      attEl.className = 'move attempt' + (isActiveAttempt ? ' active' : '');
+      let acls = 'move illegal ';
+      acls += (state0 === 'past') ? 'illegal-past' : (isActiveAttempt ? 'illegal-current' : '');
+      if (isActiveAttempt) acls += ' active';
+      attEl.className = acls;
       attEl.title = 'Illegal attempt';
       attEl.onclick = () => {
         const list = gameState.illegalByPly[0] || [];
@@ -225,7 +229,15 @@ function renderMoves() {
     if (state === 'past') cls += 'legal-past';
     else if (state === 'current') cls += (queued ? 'legal-queued' : 'legal-current active');
     moveEl.className = cls;
-    moveEl.onclick = () => { goTo(i + 1); };
+    // Navigate to the clicked move index (not the following one)
+    // If there are illegal attempts for this ply, expand them fully so they appear as already scorsi
+    moveEl.onclick = () => {
+      try {
+        const list = gameState.illegalByPly[i];
+        if (list && typeof list._subIdx === 'number') list._subIdx = list.length;
+      } catch {}
+      goTo(i);
+    };
     cont.appendChild(moveEl);
     if (state === 'past' || state === 'current') markActive(moveEl);
 
@@ -263,7 +275,7 @@ function renderMoves() {
   });
 
   // Auto-scroll to last active element
-  const active = activeElems.length ? activeElems[activeElems.length - 1] : cont.querySelector('.move.current:last-of-type');
+  const active = activeElems.length ? activeElems[activeElems.length - 1] : cont.querySelector('.move.legal-current:last-of-type');
   if (active) {
     const parent = cont;
     const aTop = active.offsetTop;
@@ -908,7 +920,7 @@ function startBackward() {
   }
   const base = 700;
   const interval = Math.max(120, Math.floor(base / backSpeed));
-  backTimer = setInterval(() => {
+  backTimer = setInterval(async () => {
     if (gameState.idx <= 0) {
       clearInterval(backTimer);
       backTimer = null;
@@ -918,17 +930,30 @@ function startBackward() {
     try {
       const engineOn = !!(engineManager && engineManager.engineRunning);
       if (engineOn) {
+        const fen = gameState.game.fen();
+        const cached = engineManager.getCached ? engineManager.getCached(fen) : null;
+        if (!cached) {
+          engineManager.requestAnalysis(fen, { showOnComplete: true, reuseCache: true, origin: 'auto-rev' });
+        }
         const high = backSpeed > 1;
         const waitBaseToggle = document.getElementById('engineWaitBase');
         const shouldWait = !high && (!!waitBaseToggle ? waitBaseToggle.checked : true);
-        if (shouldWait && engineManager.engineBusy) {
-          // Skip this tick to allow engine to finish
-          return;
+        if (shouldWait && engineManager.waitUntilIdle) {
+          const ok = await engineManager.waitUntilIdle(5000);
+          if (!ok && engineManager.abortSearch) {
+            engineManager.abortSearch();
+          }
         }
       }
     } catch {}
     step(-1);
-    renderRawMove();
+    // Align extra rendering behavior with forward autoplay to reduce churn at high speeds
+    if (!(engineManager && engineManager.engineRunning && backSpeed > 1 && engineManager.engineBusy)) {
+      try {
+        renderRawMove();
+        renderBoard();
+      } catch {}
+    }
   }, interval);
   updatePlayUI();
 }
@@ -940,14 +965,28 @@ window.TRLViewer.onEngineBusyChange = async (busy) => {
     if (busy) {
       // Pause any active timers while engine is thinking
       if (timer) { autoResumeForward = true; clearInterval(timer); timer = null; }
-      if (backTimer) { clearInterval(backTimer); backTimer = null; }
+      if (backTimer) { autoResumeBackward = true; clearInterval(backTimer); backTimer = null; }
       updatePlayUI();
     } else {
       // Resume forward only if it was running before enter-busy
       if (autoResumeForward && gameState && gameState.idx < gameState.sanMoves.length) {
         setTimeout(() => { if (!timer && !backTimer) startForward(); }, 50);
       }
+      // Resume reverse only if it was running before enter-busy and there is room to step back
+      if (autoResumeBackward && gameState) {
+        const skipIllegal = document.getElementById('skipIllegal');
+        let backAvailable = gameState.idx;
+        if (gameState.isKrieg && (!skipIllegal || !skipIllegal.checked)) {
+          const attempts = gameState.illegalByPly[gameState.idx] || [];
+          const sub = attempts && typeof attempts._subIdx === 'number' ? attempts._subIdx : 0;
+          backAvailable += sub;
+        }
+        if (backAvailable > 0) {
+          setTimeout(() => { if (!timer && !backTimer) startBackward(); }, 50);
+        }
+      }
       autoResumeForward = false;
+      autoResumeBackward = false;
     }
   } catch {}
 };
@@ -995,15 +1034,8 @@ function renderAttemptOverlay() {
   const showOnlyLatest = latestOnly && latestOnly.checked;
   const lastIdx = sub - 1;
   const startIdx = showOnlyLatest ? lastIdx : 0;
-  
-  if (showOnlyLatest) {
-    if (boardRenderer.overlayHideTimer) {
-      clearTimeout(boardRenderer.overlayHideTimer);
-    }
-    boardRenderer.overlayHideTimer = setTimeout(() => {
-      boardRenderer.clearOverlay();
-    }, 900);
-  }
+  // When showing only the latest attempt, keep the arrow visible
+  // until the user navigates forward/back; do not auto-hide.
   
   for (let i = startIdx; i < sub; i++) {
     const raw = attempts[i];
@@ -1139,7 +1171,20 @@ async function startGame() {
     
     const { header, moves } = parsePgn(pgn);
     gameState.lastHeader = header;
-    gameState.isKrieg = !!(header.Variant && header.Variant.toLowerCase().includes('krieg'));
+    // Detect Kriegspiel if Variant mentions it OR PGN has comments (curly braces) OR comments include attempt patterns
+    const variantSaysKrieg = !!(header.Variant && header.Variant.toLowerCase().includes('krieg'));
+    const pgnhasBraces = /\{[^}]*\}/.test(pgn);
+    const attemptRe = /(?:[KQRNBkqrnb]?)[a-h][1-8]-(?:[KQRNBkqrnb]?)[a-h][1-8]/;
+    let commentsSuggestKrieg = false;
+    try {
+      for (const rec of moves) {
+        const wc = (rec.whiteComment || '').trim();
+        const bc = (rec.blackComment || '').trim();
+        if (wc || bc) { commentsSuggestKrieg = true; }
+        if ((wc && attemptRe.test(wc)) || (bc && attemptRe.test(bc))) { commentsSuggestKrieg = true; break; }
+      }
+    } catch {}
+    gameState.isKrieg = variantSaysKrieg || commentsSuggestKrieg || pgnhasBraces;
     
     const movesTitle = document.getElementById('movesTitle');
     if (movesTitle) {
@@ -1161,11 +1206,31 @@ async function startGame() {
     
     const parseComment = (comment) => {
       if (!comment) return { notes: [], attempts: [] };
-      const colon = comment.indexOf(':');
-      const notesPart = colon >= 0 ? comment.slice(0, colon).trim() : comment.trim();
-      const attemptsPart = colon >= 0 ? comment.slice(colon + 1).trim() : '';
-      const notes = notesPart.split(',').map(s => s.trim()).filter(Boolean);
-      const attempts = attemptsPart.split(',').map(s => s.trim()).filter(t => /-/.test(t));
+      const raw = String(comment).trim();
+      const colon = raw.indexOf(':');
+      // Recognize from-to attempts like e2-e4 or Ne2-g3 anywhere in token
+      const attemptRe = /(?:[KQRNBkqrnb]?)[a-h][1-8]-(?:[KQRNBkqrnb]?)[a-h][1-8]/;
+      if (colon >= 0) {
+        const notesPart = raw.slice(0, colon).trim();
+        const attemptsPart = raw.slice(colon + 1).trim();
+        const notes = notesPart.split(',').map(s => s.trim()).filter(Boolean);
+        const attempts = attemptsPart
+          .split(',')
+          .map(s => s.trim())
+          .map(s => {
+            const m = s.match(attemptRe); return m ? m[0] : '';
+          })
+          .filter(Boolean);
+        return { notes, attempts };
+      }
+      // No colon: classify tokens; any token containing an attempt becomes attempt
+      const tokens = raw.split(',').map(s => s.trim()).filter(Boolean);
+      const attempts = [];
+      const notes = [];
+      for (const tok of tokens) {
+        const m = tok.match(attemptRe);
+        if (m) attempts.push(m[0]); else notes.push(tok);
+      }
       return { notes, attempts };
     };
     
