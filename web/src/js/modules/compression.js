@@ -53,14 +53,23 @@ export async function gzipCompressString(str) {
 }
 
 export async function gzipDecompressToString(bytes) {
-  if (!('DecompressionStream' in window)) throw new Error('no-decompress');
-  const ds = new DecompressionStream('gzip');
-  const writer = ds.writable.getWriter();
-  writer.write(bytes);
-  writer.close();
-  const resp = new Response(ds.readable);
-  const buf = await resp.arrayBuffer();
-  return new TextDecoder().decode(buf);
+  if ('DecompressionStream' in window) {
+    const ds = new DecompressionStream('gzip');
+    const writer = ds.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    const resp = new Response(ds.readable);
+    const buf = await resp.arrayBuffer();
+    return new TextDecoder().decode(buf);
+  }
+  // Fallback via pako (ESM). Only loaded if needed.
+  try {
+    const pako = await import('pako');
+    const out = pako.ungzip(bytes, { to: 'string' });
+    return typeof out === 'string' ? out : new TextDecoder().decode(out);
+  } catch (e) {
+    throw new Error('no-decompress');
+  }
 }
 
 export async function deflateCompressString(str) {
@@ -76,12 +85,20 @@ export async function deflateCompressString(str) {
 }
 
 export async function deflateDecompressToString(bytes) {
-  if (!('DecompressionStream' in window)) throw new Error('no-decompress');
-  const ds = new DecompressionStream('deflate');
-  const writer = ds.writable.getWriter();
-  writer.write(bytes);
-  writer.close();
-  const resp = new Response(ds.readable);
-  const buf = await resp.arrayBuffer();
-  return new TextDecoder().decode(buf);
+  if ('DecompressionStream' in window) {
+    const ds = new DecompressionStream('deflate');
+    const writer = ds.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    const resp = new Response(ds.readable);
+    const buf = await resp.arrayBuffer();
+    return new TextDecoder().decode(buf);
+  }
+  try {
+    const pako = await import('pako');
+    const out = pako.inflate(bytes, { to: 'string' });
+    return typeof out === 'string' ? out : new TextDecoder().decode(out);
+  } catch (e) {
+    throw new Error('no-decompress');
+  }
 }

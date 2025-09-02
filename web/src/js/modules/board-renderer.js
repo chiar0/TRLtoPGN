@@ -107,14 +107,18 @@ export class BoardRenderer {
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
     marker.setAttribute('id', 'arrowhead');
-    marker.setAttribute('markerWidth', '10');
-    marker.setAttribute('markerHeight', '7');
-    marker.setAttribute('refX', '10');
-    marker.setAttribute('refY', '3.5');
+    // Smaller, cleaner arrowhead
+    marker.setAttribute('markerUnits', 'userSpaceOnUse');
+    marker.setAttribute('markerWidth', '8');
+    marker.setAttribute('markerHeight', '6');
+    marker.setAttribute('refX', '8');
+    marker.setAttribute('refY', '3');
     marker.setAttribute('orient', 'auto');
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', 'M0,0 L10,3.5 L0,7 Z');
+    // Slightly slimmer triangle with rounded join
+    path.setAttribute('d', 'M0,0 L8,3 L0,6 Z');
     path.setAttribute('fill', 'context-stroke');
+    path.setAttribute('stroke-linejoin', 'round');
     marker.appendChild(path);
     defs.appendChild(marker);
     this.overlay.appendChild(defs);

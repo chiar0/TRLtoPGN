@@ -14,6 +14,7 @@ export class GameState {
     this.plyComments = [];
     this.illegalByPly = [];
     this.umpireNotesByPly = [];
+    this.captureAttemptsByPly = [];
   }
 
   reset() {
@@ -24,6 +25,7 @@ export class GameState {
     this.plyComments = [];
     this.illegalByPly = [];
     this.umpireNotesByPly = [];
+  this.captureAttemptsByPly = [];
   }
 
   getFen() {

@@ -1,15 +1,16 @@
 /* Meta Bar & Header UI */
 .metaBar {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: linear-gradient(180deg, #0f1a36, #0d1428);
   cursor: pointer;
+  position: relative;
 }
 
 .metaBar:hover {
@@ -21,6 +22,8 @@
   align-items: center;
   gap: 12px;
   font-weight: 600;
+  justify-content: flex-start;
+  order: 1;
 }
 
 .metaPlayers .vs {
@@ -31,10 +34,114 @@
 .metaInfo {
   color: var(--muted);
   font-size: 12px;
+  order: 0;
+}
+
+/* Position the edit icon inside meta bar without creating a new row */
+.metaBar > .small[aria-hidden="true"] {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  pointer-events: none;
+}
+
+.metaInfo .metaLine {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.metaInfo .pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+  color: #e5e7eb;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  font-size: 12px;
+}
+
+/* Share link length capsule */
+#shareLinkLen {
+  color: #bfdbfe;
+  border-color: rgba(59,130,246,.35);
+  background: rgba(59,130,246,.10);
 }
 
 .metaPlayers .name {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+.metaPlayers .name.activeTurn {
+  background: linear-gradient(180deg, rgba(99,102,241,0.14), rgba(99,102,241,0.10));
+  padding: 2px 6px;
+  border-radius: 8px;
+  outline: 1px solid rgba(99,102,241,0.28);
+}
+
+.metaPlayers .name.winner { outline: 1px solid rgba(34,197,94,.5); border-radius: 8px; }
+.metaPlayers .name.loser { outline: 1px solid rgba(244,63,94,.4); border-radius: 8px; opacity: .9; }
+.metaPlayers .name.drawn { outline: 1px solid rgba(148,163,184,.35); border-radius: 8px; opacity: .95; }
+
+.resultBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(148,163,184,.35);
+  color: #e5e7eb;
+  background: rgba(148,163,184,.12);
+}
+.resultBox.win { border-color: rgba(34,197,94,.55); color: #bbf7d0; background: rgba(34,197,94,.14); }
+.resultBox.loss { border-color: rgba(244,63,94,.55); color: #fecaca; background: rgba(244,63,94,.14); }
+.resultBox.draw { border-color: rgba(148,163,184,.55); color: #e5e7eb; background: rgba(148,163,184,.14); }
+
+.inlineChips { display: inline-flex; gap: 6px; margin-left: 6px; align-items: center; flex-wrap: wrap; max-width: 100%; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid rgba(148,163,184,.25);
+  color: #e5e7eb;
+  background: rgba(148,163,184,.12);
+}
+
+.chip-total { border-color: rgba(34,197,94,.35); background: rgba(34,197,94,.10); color: #bbf7d0; }
+.chip-illegal { border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.10); color: #fde68a; }
+.chip-capture { border-color: rgba(59,130,246,.35); background: rgba(59,130,246,.10); color: #bfdbfe; }
+.chip-check { border-color: rgba(244,63,94,.40); background: rgba(244,63,94,.12); color: #fecaca; font-weight: 600; }
+.chip.muted { opacity: .75; }
+.chip-result { font-weight: 600; }
+.chip-win { border-color: rgba(34,197,94,.45); background: rgba(34,197,94,.12); color: #bbf7d0; }
+.chip-loss { border-color: rgba(244,63,94,.45); background: rgba(244,63,94,.12); color: #fecaca; }
+.chip-draw { border-color: rgba(148,163,184,.45); background: rgba(148,163,184,.12); color: #e5e7eb; }
+
+/* Clickable '#' rendered after mate SAN */
+.move.mate-hash {
+  cursor: pointer;
+  color: #fecaca;
+}
+.move.mate-hash:hover {
+  text-decoration: underline;
 }

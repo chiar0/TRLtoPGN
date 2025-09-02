@@ -121,7 +121,7 @@ let convertTimer = null;
 function isHighSpeed() { return forwardSpeed > 1; }
 
 // Initialize board renderer after DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // Ensure stray drag container never shows
   installDraggedPiecesGuard();
   // Instantiate modules only after DOM is ready so they can bind to elements
@@ -130,7 +130,29 @@ document.addEventListener('DOMContentLoaded', () => {
   engineManager = new EngineManager();
   init();
   applyInitialConverterOnlyState();
-  tryDecodeShareFromURL();
+  // Prefer embedded payload when present (exported builds)
+  let decoded = false;
+  try {
+    if (window && window.TRL_EMBED && window.TRL_EMBED.text) {
+      const fmt = (window.TRL_EMBED.fmt || 'pgn');
+      const final = await fileManager.ensureFormat(window.TRL_EMBED.text, fmt);
+      input.value = final;
+      fileManager.lastInputType = detectType(final);
+      fileManager.setTag(fileManager.lastInputType, originalTag, input);
+      updateConvertedPreview(final);
+      updateShareControls();
+      updateOriginalInfo();
+      decoded = true;
+    } else {
+      decoded = await tryDecodeShareFromURL();
+    }
+  } catch {}
+  try {
+    if (decoded && (window && window.TRL_STANDALONE)) {
+      // In standalone export, auto-start the game once the hash is decoded
+      startGame();
+    }
+  } catch {}
 });
 
 function init() {
@@ -184,53 +206,69 @@ function renderMoves() {
   // Helper to append and mark active
   const markActive = (el) => { activeElems.push(el); };
 
-  // Render attempts before any move (ply 0)
-  if (gameState.isKrieg && (!skipIllegal || !skipIllegal.checked)) {
-    const attempts0 = gameState.illegalByPly[0] || [];
-    const sub0 = (attempts0 && typeof attempts0._subIdx === 'number') ? attempts0._subIdx : 0;
-    const state0 = 0 < gameState.idx ? 'past' : (0 === gameState.idx ? 'current' : 'future');
-    const showCount0 = state0 === 'past' ? attempts0.length : (state0 === 'current' ? Math.max(0, Math.min(sub0, attempts0.length)) : 0);
-    
-    for (let k = 0; k < showCount0; k++) {
-      const t = attempts0[k];
-      const attEl = document.createElement('span');
-      attEl.textContent = `↳ ${t}`;
-      const isActiveAttempt = (state0 === 'current' && k === showCount0 - 1);
-      let acls = 'move illegal ';
-      acls += (state0 === 'past') ? 'illegal-past' : (isActiveAttempt ? 'illegal-current' : '');
-      if (isActiveAttempt) acls += ' active';
-      attEl.className = acls;
-      attEl.title = 'Illegal attempt';
-      attEl.onclick = () => {
-        const list = gameState.illegalByPly[0] || [];
-        list._subIdx = Math.min(k + 1, list.length);
-        goTo(0);
-      };
-      cont.appendChild(attEl);
-      if (isActiveAttempt) markActive(attEl);
-    }
-  }
-
-  // Render moves with attempts
+  // Render moves with attempts: for white, show move number, then illegals, then the white move.
   gameState.sanMoves.forEach((m, i) => {
-    const state = i < gameState.idx ? 'past' : (i === gameState.idx ? 'current' : 'future');
-    const moveEl = document.createElement('span');
-    moveEl.textContent = (i % 2 === 0 ? Math.floor(i / 2) + 1 + '. ' : '') + m + ' ';
+    const isWhite = (i % 2 === 0);
+    const plyIdxForIllegalsBefore = i; // illegals that happen before this legal
+    const stateLegal = i < gameState.idx ? 'past' : (i === gameState.idx ? 'current' : 'future');
+    const attemptsBefore = (gameState.isKrieg && (!skipIllegal || !skipIllegal.checked)) ? (gameState.illegalByPly[plyIdxForIllegalsBefore] || []) : [];
+    const subBefore = (attemptsBefore && typeof attemptsBefore._subIdx === 'number') ? attemptsBefore._subIdx : 0;
+    const stateBefore = plyIdxForIllegalsBefore < gameState.idx ? 'past' : (plyIdxForIllegalsBefore === gameState.idx ? 'current' : 'future');
 
-    // Check for queued state during illegal attempts
-    let queued = false;
-    if (gameState.isKrieg && (!skipIllegal || !skipIllegal.checked) && state === 'current') {
-      const attempts = gameState.illegalByPly[i] || [];
-      const sub = (attempts && typeof attempts._subIdx === 'number') ? attempts._subIdx : 0;
-      queued = sub > 0;
+    // Move number for White before illegals
+    if (isWhite) {
+      const numEl = document.createElement('span');
+      numEl.textContent = (Math.floor(i / 2) + 1) + '. ';
+      numEl.className = 'move move-num';
+      // Click on the move number jumps to this turn's first ply
+      numEl.title = 'Jump to this move';
+      numEl.onclick = () => goTo(i);
+      cont.appendChild(numEl);
     }
 
+    // Illegals before this legal move
+    if (attemptsBefore && attemptsBefore.length > 0) {
+      let showCountB = 0;
+      if (stateBefore === 'past') showCountB = attemptsBefore.length;
+      else if (stateBefore === 'current') showCountB = Math.max(0, Math.min(subBefore, attemptsBefore.length));
+      for (let k = 0; k < showCountB; k++) {
+        const t = attemptsBefore[k];
+        const attEl = document.createElement('span');
+        attEl.textContent = `↳ ${t}`;
+        const isActiveAttempt = (stateBefore === 'current' && k === showCountB - 1);
+        let acls = 'move illegal ';
+        acls += (stateBefore === 'past') ? 'illegal-past' : (isActiveAttempt ? 'illegal-current' : '');
+        if (isActiveAttempt) acls += ' active';
+        attEl.className = acls;
+        attEl.title = 'Illegal attempt';
+        attEl.onclick = () => {
+          const list = gameState.illegalByPly[plyIdxForIllegalsBefore] || [];
+          list._subIdx = Math.min(k + 1, list.length);
+          goTo(plyIdxForIllegalsBefore);
+        };
+        cont.appendChild(attEl);
+        if (isActiveAttempt) markActive(attEl);
+      }
+    }
+
+    // Now the legal move itself
+  const moveEl = document.createElement('span');
+  // If SAN ends with '#', split it out as a separate clickable hash that jumps to end
+  let sanText = m;
+  const mateAtEnd = /#$/.test(sanText);
+  if (mateAtEnd) sanText = sanText.slice(0, -1);
+  moveEl.textContent = sanText + ' ';
+    let queued = false;
+    if (gameState.isKrieg && (!skipIllegal || !skipIllegal.checked) && stateLegal === 'current') {
+      const attemptsHere = gameState.illegalByPly[i] || [];
+      // If this ply has any illegal attempts defined, show the legal move
+      // as queued (green) until the legal move is executed.
+      queued = (Array.isArray(attemptsHere) ? attemptsHere.length : 0) > 0;
+    }
     let cls = 'move ';
-    if (state === 'past') cls += 'legal-past';
-    else if (state === 'current') cls += (queued ? 'legal-queued' : 'legal-current active');
+    if (stateLegal === 'past') cls += 'legal-past';
+    else if (stateLegal === 'current') cls += (queued ? 'legal-queued' : 'legal-current active');
     moveEl.className = cls;
-    // Navigate to the clicked move index (not the following one)
-    // If there are illegal attempts for this ply, expand them fully so they appear as already scorsi
     moveEl.onclick = () => {
       try {
         const list = gameState.illegalByPly[i];
@@ -239,39 +277,15 @@ function renderMoves() {
       goTo(i);
     };
     cont.appendChild(moveEl);
-    if (state === 'past' || state === 'current') markActive(moveEl);
-
-    // Append illegal attempts that occur after this move
-    let attempts = [];
-    const attemptsIdx = i + 1;
-    if (gameState.isKrieg && (!skipIllegal || !skipIllegal.checked)) {
-      attempts = gameState.illegalByPly[attemptsIdx] || [];
+    if (mateAtEnd) {
+      const hashEl = document.createElement('span');
+      hashEl.textContent = '# ';
+      hashEl.className = 'move mate-hash';
+      hashEl.title = 'Jump to endgame';
+      hashEl.onclick = () => goTo(gameState.sanMoves.length);
+      cont.appendChild(hashEl);
     }
-    const sub = (attempts && typeof attempts._subIdx === 'number') ? attempts._subIdx : 0;
-    const stateA = attemptsIdx < gameState.idx ? 'past' : (attemptsIdx === gameState.idx ? 'current' : 'future');
-    let showCount = 0;
-    if (stateA === 'past') { showCount = attempts.length; }
-    else if (stateA === 'current') { showCount = Math.max(0, Math.min(sub, attempts.length)); }
-    else { showCount = 0; }
-
-    for (let k = 0; k < showCount; k++) {
-      const t = attempts[k];
-      const attEl = document.createElement('span');
-      attEl.textContent = `↳ ${t}`;
-      const isActiveAttempt = (stateA === 'current' && k === showCount - 1);
-      let acls = 'move illegal ';
-      acls += (stateA === 'past') ? 'illegal-past' : (isActiveAttempt ? 'illegal-current' : '');
-      if (isActiveAttempt) acls += ' active';
-      attEl.className = acls;
-      attEl.title = 'Illegal attempt';
-      attEl.onclick = () => {
-        const list = gameState.illegalByPly[attemptsIdx] || [];
-        list._subIdx = Math.min(k + 1, list.length);
-        goTo(attemptsIdx);
-      };
-      cont.appendChild(attEl);
-      if (isActiveAttempt) markActive(attEl);
-    }
+    if (stateLegal === 'past' || stateLegal === 'current') markActive(moveEl);
   });
 
   // Auto-scroll to last active element
@@ -306,6 +320,19 @@ function goTo(n) {
   try { engineManager && engineManager.updateIconVisuals && engineManager.updateIconVisuals(); } catch {}
 }
 
+// Navigate to absolute start: reset move index and any illegal-attempt progress
+function goToStart() {
+  try {
+    if (gameState && Array.isArray(gameState.illegalByPly)) {
+      for (let i = 0; i < gameState.illegalByPly.length; i++) {
+        const list = gameState.illegalByPly[i];
+        if (list && typeof list._subIdx === 'number') list._subIdx = 0;
+      }
+    }
+  } catch {}
+  goTo(0);
+}
+
 function step(dir) {
   const skipIllegal = document.getElementById('skipIllegal');
   const attempts = gameState.isKrieg ? (gameState.illegalByPly[gameState.idx] || []) : [];
@@ -315,6 +342,8 @@ function step(dir) {
       attempts._subIdx++;
       renderBoard();
       renderMoves();
+      renderRawMove();
+      updatePlayUI();
       return;
     }
     if (gameState.idx < gameState.sanMoves.length) {
@@ -329,6 +358,24 @@ function step(dir) {
         curAttempts._subIdx--;
         renderBoard();
         renderMoves();
+        renderRawMove();
+        updatePlayUI();
+        return;
+      }
+      // If current attempts are exhausted (subIdx==0), undo one legal move and
+      // land into previous ply's illegal attempts (if any), instead of re-entering current ones.
+      if (gameState.idx > 0) {
+        gameState.game.undo();
+        gameState.idx--;
+        const prevAttempts = gameState.illegalByPly[gameState.idx] || [];
+        const prevLen = prevAttempts.length || 0;
+        if (prevLen > 0) {
+          prevAttempts._subIdx = prevLen;
+        }
+        renderBoard();
+        renderMoves();
+        renderRawMove();
+        updatePlayUI();
         return;
       }
     }
@@ -360,7 +407,7 @@ function setupEventListeners() {
   // Navigation buttons
   $('#back').onclick = () => step(-1);
   $('#forward').onclick = () => step(1);
-  $('#backAll').onclick = () => goTo(0);
+  $('#backAll').onclick = () => goToStart();
   $('#forwardAll').onclick = () => goTo(gameState.sanMoves.length);
 
   // Play controls
@@ -508,6 +555,30 @@ function setupEventListeners() {
   const replaySettingsBtn = document.getElementById('replaySettingsBtn');
   const replaySettingsMenu = document.getElementById('replaySettingsMenu');
   const headerBarForOptions = document.getElementById('boardHeaderBar');
+
+  // Keyboard: type a move number to jump to that turn's first move (White)
+  let numBuffer = '';
+  let numTimer = null;
+  window.addEventListener('keydown', (e) => {
+    // Ignore when typing in inputs or modifiers are pressed
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key >= '0' && e.key <= '9') {
+      numBuffer += e.key;
+      if (numTimer) clearTimeout(numTimer);
+      numTimer = setTimeout(() => { numBuffer = ''; }, 800);
+      // Attempt parse when we have at least 1 digit and not too many
+      if (numBuffer.length >= 1 && numBuffer.length <= 3) {
+        const n = parseInt(numBuffer, 10);
+        if (!Number.isNaN(n) && n > 0) {
+          const ply = (n - 1) * 2; // White's ply for move n
+          if (ply <= gameState.sanMoves.length) {
+            goTo(ply);
+          }
+        }
+      }
+    }
+  });
   const metaRow = document.getElementById('metaRow');
   const ensureOptionsHolder = () => {
     let holder = document.getElementById('boardHeaderOptionsHolder');
@@ -557,8 +628,9 @@ function setupEventListeners() {
   const gridEl = document.getElementById('grid');
   const converterPanel = document.getElementById('converterPanel');
   const toggleConverter = document.getElementById('toggleConverter');
-  const restoreConverterBtn = document.getElementById('restoreConverter');
-  const converterRestoreWrap = document.getElementById('converterRestoreWrap');
+  const showConverterTop = document.getElementById('showConverterTop');
+  const restoreConverterBtn = null;
+  const converterRestoreWrap = null;
   if (toggleConverter && converterPanel && gridEl) {
     toggleConverter.onclick = () => {
       const isHidden = converterPanel.style.display === 'none';
@@ -566,13 +638,15 @@ function setupEventListeners() {
         converterPanel.style.display = '';
         gridEl.classList.remove('conv-collapsed');
         toggleConverter.textContent = 'Hide Converter';
-        if (converterRestoreWrap) converterRestoreWrap.style.display = 'none';
+  /* no under-board restore */
+        if (showConverterTop) showConverterTop.style.display = 'none';
         gridEl.classList.remove('tight');
       } else {
         converterPanel.style.display = 'none';
         gridEl.classList.add('conv-collapsed');
         toggleConverter.textContent = 'Show Converter';
-        if (converterRestoreWrap) converterRestoreWrap.style.display = '';
+  /* no under-board restore */
+        if (showConverterTop) showConverterTop.style.display = '';
         // If there is enough width to keep moves on the right, enable tight mode
         try {
           const bp = document.getElementById('boardPanel');
@@ -596,15 +670,20 @@ function setupEventListeners() {
       requestAnimationFrame(() => { if (boardRenderer) { boardRenderer.resizeOverlay(); renderAttemptOverlay(); updateMovesPlacement(); } });
     };
   }
-  if (restoreConverterBtn && converterPanel && gridEl) {
-    restoreConverterBtn.onclick = () => {
-      converterPanel.style.display = '';
-      gridEl.classList.remove('conv-collapsed');
-      if (toggleConverter) toggleConverter.textContent = 'Hide Converter';
-      if (converterRestoreWrap) converterRestoreWrap.style.display = 'none';
-      requestAnimationFrame(() => { if (boardRenderer) { boardRenderer.resizeOverlay(); renderAttemptOverlay(); updateMovesPlacement(); } });
+  // Top bar Show Converter mirrors restore and converter visibility
+  if (showConverterTop && converterPanel && gridEl) {
+    showConverterTop.onclick = () => {
+      if (converterPanel.style.display === 'none') {
+        converterPanel.style.display = '';
+        gridEl.classList.remove('conv-collapsed');
+        if (toggleConverter) toggleConverter.textContent = 'Hide Converter';
+        if (converterRestoreWrap) converterRestoreWrap.style.display = 'none';
+        showConverterTop.style.display = 'none';
+        requestAnimationFrame(() => { if (boardRenderer) { boardRenderer.resizeOverlay(); renderAttemptOverlay(); updateMovesPlacement(); } });
+      }
     };
   }
+  // under-board restore removed; top button handles restore now
 
   // Moves panel show/hide
   const toggleMoves = document.getElementById('toggleMoves');
@@ -851,6 +930,7 @@ function updatePlayUI() {
         sub = attempts && typeof attempts._subIdx === 'number' ? attempts._subIdx : 0;
       }
       const backAvailable = gameState.idx + sub;
+      // Show only after two steps of progress (legal or illegal)
       revPlayBtn.style.display = (backAvailable >= 2) ? '' : 'none';
     }
   }
@@ -921,7 +1001,17 @@ function startBackward() {
   const base = 700;
   const interval = Math.max(120, Math.floor(base / backSpeed));
   backTimer = setInterval(async () => {
-    if (gameState.idx <= 0) {
+    // Stop only when there is nothing left to step back, including illegal attempts at current ply
+    let backAvailable = gameState.idx;
+    try {
+      const skipIllegal = document.getElementById('skipIllegal');
+      if (gameState.isKrieg && (!skipIllegal || !skipIllegal.checked)) {
+        const attempts = gameState.illegalByPly[gameState.idx] || [];
+        const sub = attempts && typeof attempts._subIdx === 'number' ? attempts._subIdx : 0;
+        backAvailable += sub;
+      }
+    } catch {}
+    if (backAvailable <= 0) {
       clearInterval(backTimer);
       backTimer = null;
       updatePlayUI();
@@ -1068,6 +1158,7 @@ function attemptColor(relIndex) {
 function renderTurnInfo() {
   const turnInfoLeft = document.getElementById('topLeftInfo');
   const turnInfoCenter = document.getElementById('turnInfoCenter');
+  const metaInfo = document.getElementById('metaInfo');
   if (!turnInfoLeft && !turnInfoCenter) return;
   
   const turn = gameState.game.turn() === 'w' ? 'White' : 'Black';
@@ -1083,17 +1174,251 @@ function renderTurnInfo() {
     }
     const cm = n.match(/^C([A-Z]+)/);
     if (cm) {
-      const map = { K: 'Knight', R: 'Rank', L: 'Long diagonal', F: 'File', S: 'Short diagonal' };
+  const map = { K: 'Knight', R: 'Rank', L: 'Long diagonal', F: 'File', S: 'Short diagonal' };
       const parts = cm[1].split('').map(c => map[c] || c).join(', ');
-      checkTxt = `Check: ${parts}`;
+  checkTxt = `Check: ${parts}`;
     }
   }
+
+  // Current-turn illegals attempted (progress) and total available
+  let illegalTried = 0;
+  let illegalTotal = 0;
+  try {
+    const curAttempts = gameState.illegalByPly[gameState.idx] || [];
+    if (curAttempts) {
+      illegalTotal = curAttempts.length || 0;
+      illegalTried = (typeof curAttempts._subIdx === 'number') ? Math.max(0, Math.min(curAttempts._subIdx, illegalTotal)) : 0;
+    }
+  } catch {}
   
-  const html = `<span class="pill">Turn: ${turn}</span>` +
-    (tries ? ` <span class="pill">Tries: ${tries}</span>` : '') +
-    (checkTxt ? ` <span class="pill">${checkTxt}</span>` : '');
-  if (turnInfoCenter) turnInfoCenter.innerHTML = html;
+  // Cumulative tries per player up to highlighted turn (including current partial attempts)
+  let totalWhite = 0, totalBlack = 0;
+  try {
+    const upTo = Math.max(0, Math.min(gameState.idx, gameState.illegalByPly.length));
+    for (let p = 0; p < upTo; p++) {
+      const list = gameState.illegalByPly[p] || [];
+      const add = (Array.isArray(list) ? list.length : 0);
+      if (p % 2 === 0) totalWhite += add; else totalBlack += add;
+    }
+    // Add current partial attempts to the side to move
+    if (gameState.idx < gameState.illegalByPly.length) {
+      if (gameState.game.turn() === 'w') totalWhite += illegalTried; else totalBlack += illegalTried;
+    }
+  } catch {}
+  
+  // Compute game result at end
+  const atEnd = gameState.idx >= gameState.sanMoves.length;
+  let resultSym = (gameState.lastHeader?.Result || '').trim();
+  let resultFor = null; // 'w' | 'b' | 'draw' | null
+  try {
+    if (!resultSym || resultSym === '*') {
+      if (typeof gameState.game.in_checkmate === 'function' && gameState.game.in_checkmate()) {
+        // Side to move is checkmated; winner is the other side
+        const win = (gameState.game.turn() === 'w') ? 'b' : 'w';
+        resultFor = win;
+        resultSym = (win === 'w') ? '1-0' : '0-1';
+      } else if (typeof gameState.game.in_draw === 'function' && gameState.game.in_draw()) {
+        resultFor = 'draw';
+        resultSym = '1/2-1/2';
+      }
+    } else {
+      if (resultSym === '1-0') resultFor = 'w';
+      else if (resultSym === '0-1') resultFor = 'b';
+      else if (resultSym === '1/2-1/2') resultFor = 'draw';
+    }
+  } catch {}
+
+  // Integrated meta bar: header line plus Result when available
+  try {
+    const ev = gameState.lastHeader?.Event || 'Client Game';
+    const dt = gameState.lastHeader?.Date || new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+    const st = gameState.lastHeader?.Site || 'Local';
+    const resStr = (atEnd && resultSym && resultSym !== '*') ? ` • Result ${resultSym}` : '';
+    if (metaInfo) metaInfo.innerHTML = `<div class="metaLine">${ev} • ${dt} • ${st}${resStr}</div>`;
+  } catch {}
+  if (turnInfoCenter) turnInfoCenter.style.display = 'none';
   if (turnInfoLeft) turnInfoLeft.innerHTML = '';
+
+  // Inline chips beside active player's name: illegals, captures, check
+  try {
+  const wName = document.getElementById('metaWhite');
+  const bName = document.getElementById('metaBlack');
+  // Use ply index parity to determine active side to avoid edge cases
+  const isWhiteTurn = (gameState.idx % 2) === 0;
+  const updateSide = (nameEl, active, tried, total, captures, inCheck, totalSoFar, cumulativeTriedSoFar, checkText, gaveCheck, prevCaptures, prevTried, atEnd, resultTag) => {
+      if (!nameEl || !nameEl.parentElement) return;
+      const parent = nameEl.parentElement; // .name
+      // Toggle active highlight
+      parent.classList.toggle('activeTurn', !!active);
+      parent.classList.toggle('winner', resultTag === 'win');
+      parent.classList.toggle('loser', resultTag === 'loss');
+      parent.classList.toggle('drawn', resultTag === 'draw');
+      // Badge adornments
+      try {
+        const badge = parent.querySelector('.badge');
+        if (badge) badge.classList.toggle('pulse-check', !!(active && inCheck));
+      } catch {}
+      // Remove any old sublabels container
+      Array.from(parent.querySelectorAll('.metaSub')).forEach(n => n.remove());
+      // Ensure or create inline chips holder
+      let holder = parent.querySelector('.inlineChips');
+      if (!holder) {
+        holder = document.createElement('span');
+        holder.className = 'inlineChips';
+        parent.appendChild(holder);
+      }
+      const parts = [];
+      // Place capture chip first so it likely stays on the top line near the name
+      if (active) {
+        const c = Math.max(0, captures || 0);
+        if (c > 0) parts.push(`<span class=\"chip chip-capture\" title=\"Capture attempts this turn\">⚔︎ ${c}</span>`);
+      } else if (prevCaptures && prevCaptures > 0) {
+        parts.push(`<span class=\"chip chip-capture muted\" title=\"Capture attempts on previous turn\">⚔︎ ${prevCaptures}</span>`);
+      }
+      // Unified yellow chip: Σ total | ↳ per-turn (if active) or cumulative tried so far (if inactive)
+      // At end of the game, show simplified format with Σ label and cumulative only for both sides
+      const left = atEnd ? `Σ` : `Σ ${Math.max(0, totalSoFar || 0)}`;
+      let right;
+      if (atEnd) {
+        right = `↳ ${Math.max(0, cumulativeTriedSoFar || 0)}`;
+      } else if (active) {
+        const tTried = Math.max(0, tried || 0);
+        const tTotal = Math.max(0, total || 0);
+        // 0/0 => just show 0; when reached total, drop '/total'
+        if (tTotal === 0) right = `↳ ${tTried}`;
+        else right = (tTried >= tTotal) ? `↳ ${tTried}` : `↳ ${tTried}/${tTotal}`;
+      } else {
+        // During the game show the last turn's attempts for the inactive side
+        right = `↳ ${Math.max(0, prevTried || 0)}`;
+      }
+      parts.push(`<span class=\"chip chip-illegal\" title=\"Illegal totals and attempts\">${left} | ${right}</span>`);
+      if (active) {
+        if (inCheck) {
+          const label = checkText ? `♛ ${checkText}` : '♛ Check';
+          parts.push(`<span class=\"chip chip-check\" title=\"King in check\">${label}</span>`);
+        }
+      } else {
+        if (gaveCheck) {
+          const label = checkText ? `♛ ${checkText}` : '♛ Check';
+          parts.push(`<span class=\"chip chip-check muted\" title=\"Gave check on the previous move\">${label}</span>`);
+        }
+      }
+      // Ensure/update compact result box next to the name
+      try {
+        let box = parent.querySelector('.resultBox');
+        if (!resultTag) {
+          if (box) box.remove();
+        } else {
+          const symbol = resultTag === 'win' ? '✓' : (resultTag === 'loss' ? '✖' : '½');
+          if (!box) {
+            box = document.createElement('span');
+            box.className = 'resultBox';
+            // place immediately after the name text span
+            try { nameEl.insertAdjacentElement('afterend', box); } catch { parent.appendChild(box); }
+          }
+          box.textContent = symbol;
+          box.title = 'Game result';
+          box.classList.remove('win','loss','draw');
+          box.classList.add(resultTag);
+        }
+      } catch {}
+      holder.innerHTML = parts.join(' ');
+    };
+    // Capture attempts count: taken from parsed comments (persist to next turn)
+    let capturesAvailable = 0;
+    try {
+      const idx = gameState.idx;
+      capturesAvailable = Math.max(0, gameState.captureAttemptsByPly?.[idx] || 0);
+    } catch {}
+  const inCheck = (() => { try { return !!gameState.game.in_check(); } catch { return false; } })();
+    // Determine check type text from umpire notes if available
+    let checkTypeText = '';
+    try {
+      const prev = Math.max(0, Math.min(gameState.idx - 1, gameState.umpireNotesByPly.length - 1));
+      const notes = gameState.umpireNotesByPly[prev] || [];
+      for (const n of notes) {
+        const cm = n.match(/^C([A-Z]+)/);
+        if (cm) {
+          const map = { K: 'Knight', R: 'Rank', L: 'Long diagonal', F: 'File', S: 'Short diagonal' };
+          const parts = cm[1].split('').map(c => map[c] || c).join(', ');
+          checkTypeText = `Check: ${parts}`;
+          break;
+        }
+      }
+    } catch {}
+    // Determine who gave check in the previous legal move (if any)
+    let gaveCheckColor = null;
+    try {
+  const prevPly = Math.max(0, Math.min(gameState.idx - 1, gameState.sanMoves.length - 1));
+      const sanPrev = gameState.sanMoves[prevPly] || '';
+      if (/[+#]$/.test(sanPrev)) {
+        gaveCheckColor = (prevPly % 2 === 0) ? 'w' : 'b';
+      }
+    } catch {}
+  // Previous turn capture attempts per side (persisted from comments)
+    let prevCapturesW = 0, prevCapturesB = 0;
+    try {
+      if (gameState.idx > 0) {
+        const prevIdx = gameState.idx - 1;
+        const cap = Math.max(0, gameState.captureAttemptsByPly?.[prevIdx] || 0);
+        if (prevIdx % 2 === 0) prevCapturesW = cap; else prevCapturesB = cap;
+      }
+    } catch {}
+    // Cumulative illegal attempts per side
+    let cumTriedW = 0, cumTriedB = 0;
+    try {
+      const end = atEnd ? gameState.illegalByPly.length : gameState.idx;
+      for (let p = 0; p < end; p++) {
+        const list = gameState.illegalByPly[p] || [];
+        const add = Array.isArray(list) ? list.length : 0;
+        if (p % 2 === 0) cumTriedW += add; else cumTriedB += add;
+      }
+    } catch {}
+    // Previous ply tried counts per side (for inactive chip during the game)
+    let prevTriedW = 0, prevTriedB = 0;
+    try {
+      if (!atEnd && gameState.idx > 0) {
+        const prevIdx = gameState.idx - 1;
+        const list = gameState.illegalByPly[prevIdx] || [];
+        const add = Array.isArray(list) ? list.length : 0;
+        if (prevIdx % 2 === 0) prevTriedW = add; else prevTriedB = add;
+      }
+    } catch {}
+    const wTag = (atEnd && resultFor) ? (resultFor === 'w' ? 'win' : (resultFor === 'b' ? 'loss' : 'draw')) : null;
+    const bTag = (atEnd && resultFor) ? (resultFor === 'b' ? 'win' : (resultFor === 'w' ? 'loss' : 'draw')) : null;
+    updateSide(
+      wName,
+      isWhiteTurn,
+      isWhiteTurn ? illegalTried : 0,
+      isWhiteTurn ? illegalTotal : 0,
+      isWhiteTurn ? capturesAvailable : 0,
+      isWhiteTurn && inCheck,
+      totalWhite,
+      cumTriedW,
+      checkTypeText,
+      gaveCheckColor === 'w',
+      !isWhiteTurn ? prevCapturesW : 0,
+      !isWhiteTurn ? prevTriedW : 0,
+      atEnd,
+      wTag
+    );
+    updateSide(
+      bName,
+      !isWhiteTurn,
+      !isWhiteTurn ? illegalTried : 0,
+      !isWhiteTurn ? illegalTotal : 0,
+      !isWhiteTurn ? capturesAvailable : 0,
+      !isWhiteTurn && inCheck,
+      totalBlack,
+      cumTriedB,
+      checkTypeText,
+      gaveCheckColor === 'b',
+      isWhiteTurn ? prevCapturesB : 0,
+      isWhiteTurn ? prevTriedB : 0,
+      atEnd,
+      bTag
+    );
+  } catch {}
 }
 
 function renderRawMove() {
@@ -1200,20 +1525,32 @@ async function startGame() {
     gameState.orientation = 'white';
     
     // Build per-ply data
-    gameState.plyComments = [];
-    gameState.illegalByPly = [];
-    gameState.umpireNotesByPly = [];
+  gameState.plyComments = [];
+  gameState.illegalByPly = [];
+  gameState.umpireNotesByPly = [];
+  gameState.captureAttemptsByPly = [];
+  const rawCapCounts = [];
     
     const parseComment = (comment) => {
-      if (!comment) return { notes: [], attempts: [] };
+      if (!comment) return { notes: [], attempts: [], capTargets: [], capTries: null };
       const raw = String(comment).trim();
       const colon = raw.indexOf(':');
       // Recognize from-to attempts like e2-e4 or Ne2-g3 anywhere in token
       const attemptRe = /(?:[KQRNBkqrnb]?)[a-h][1-8]-(?:[KQRNBkqrnb]?)[a-h][1-8]/;
+      const capRe = /^X([a-h][1-8])$/i;
       if (colon >= 0) {
         const notesPart = raw.slice(0, colon).trim();
         const attemptsPart = raw.slice(colon + 1).trim();
-        const notes = notesPart.split(',').map(s => s.trim()).filter(Boolean);
+        const noteTokens = notesPart.split(',').map(s => s.trim()).filter(Boolean);
+        const notes = [...noteTokens];
+        const capTargets = noteTokens.map(t => {
+          const m = t.match(capRe); return m ? m[1].toLowerCase() : '';
+        }).filter(Boolean);
+        let capTries = null;
+        for (const t of noteTokens) {
+          const pm = t.match(/^P(\d+)/i);
+          if (pm) { capTries = parseInt(pm[1], 10); break; }
+        }
         const attempts = attemptsPart
           .split(',')
           .map(s => s.trim())
@@ -1221,37 +1558,82 @@ async function startGame() {
             const m = s.match(attemptRe); return m ? m[0] : '';
           })
           .filter(Boolean);
-        return { notes, attempts };
+        return { notes, attempts, capTargets, capTries };
       }
       // No colon: classify tokens; any token containing an attempt becomes attempt
       const tokens = raw.split(',').map(s => s.trim()).filter(Boolean);
       const attempts = [];
       const notes = [];
+      const capTargets = [];
+      let capTries = null;
       for (const tok of tokens) {
         const m = tok.match(attemptRe);
-        if (m) attempts.push(m[0]); else notes.push(tok);
+        if (m) attempts.push(m[0]); else {
+          const c = tok.match(/^X([a-h][1-8])$/i);
+          if (c) capTargets.push(c[1].toLowerCase());
+          const pm = tok.match(/^P(\d+)/i);
+          if (pm) capTries = parseInt(pm[1], 10);
+          notes.push(tok);
+        }
       }
-      return { notes, attempts };
+      return { notes, attempts, capTargets, capTries };
     };
     
     const collect = (rec) => {
       if (rec.whiteMove) {
         gameState.plyComments.push(rec.whiteComment || '');
-        const { notes, attempts } = parseComment(rec.whiteComment || '');
+        const { notes, attempts, capTargets, capTries } = parseComment(rec.whiteComment || '');
         gameState.umpireNotesByPly.push(notes);
         gameState.illegalByPly.push(Object.assign([...attempts], { _subIdx: 0 }));
+        // Count capture attempts targeting any X-square in notes
+        let capCount = 0;
+        if (typeof capTries === 'number') {
+          capCount = capTries;
+        } else {
+          try {
+            for (const a of attempts) {
+              const m = a.match(/-([a-h][1-8])$/i);
+              if (m && capTargets.includes(m[1].toLowerCase())) capCount++;
+            }
+          } catch {}
+        }
+        rawCapCounts.push(capCount);
       }
       if (rec.blackMove) {
         gameState.plyComments.push(rec.blackComment || '');
-        const { notes, attempts } = parseComment(rec.blackComment || '');
+        const { notes, attempts, capTargets, capTries } = parseComment(rec.blackComment || '');
         gameState.umpireNotesByPly.push(notes);
         gameState.illegalByPly.push(Object.assign([...attempts], { _subIdx: 0 }));
+        let capCount = 0;
+        if (typeof capTries === 'number') {
+          capCount = capTries;
+        } else {
+          try {
+            for (const a of attempts) {
+              const m = a.match(/-([a-h][1-8])$/i);
+              if (m && capTargets.includes(m[1].toLowerCase())) capCount++;
+            }
+          } catch {}
+        }
+        rawCapCounts.push(capCount);
       }
     };
     
     for (const rec of moves) {
       collect(rec);
     }
+    // Apply capture attempts to the next player's turn by shifting counts by +1 ply
+    try {
+      const n = rawCapCounts.length;
+      const shifted = new Array(n).fill(0);
+      for (let p = 1; p < n; p++) shifted[p] = rawCapCounts[p - 1];
+      gameState.captureAttemptsByPly = shifted;
+    } catch {}
+    // Re-render now that illegal attempts and notes are available so the first
+    // move reflects queued (green) state and totals show 0/total immediately.
+    renderBoard();
+    renderMoves();
+    updatePlayUI();
     
     // Update meta display
     const meta = $('#meta');
@@ -1319,12 +1701,12 @@ async function buildShareUrl() { return buildShareUrlFromModule(fileManager, inp
 
 async function tryDecodeShareFromURL() {
   try {
-    if (!location.hash || location.hash.length < 2) return;
+    if (!location.hash || location.hash.length < 2) return false;
     const q = new URLSearchParams(location.hash.slice(1));
     const fmt = (q.get('fmt') || 'pgn').toLowerCase();
     const c = (q.get('c') || 'raw');
     const d = q.get('d');
-    if (!d) return;
+    if (!d) return false;
     let text = '';
     if (c === 'gz') {
       const bytes = Compression.b64urlToBytes(d);
@@ -1344,8 +1726,10 @@ async function tryDecodeShareFromURL() {
     updateShareControls();
     updateOriginalInfo();
     // In share mode, keep converter visible; user can press Start to load
+    return true;
   } catch (e) {
     console.warn('Share decode failed', e);
+    return false;
   }
 }
 

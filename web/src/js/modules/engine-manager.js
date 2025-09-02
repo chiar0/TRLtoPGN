@@ -171,11 +171,11 @@ export class EngineManager {
           this.engineReady = true;
           this.engineWorker.onmessage = (ev) => this.onEngineMessage(ev);
           this.setEngineStatus('loaded (embedded)');
-          this.appendEngineExplain('Motore caricato embedded (lite) su richiesta.');
+          this.appendEngineExplain('Engine loaded (embedded lite) on request.');
           return this.engineWorker;
         }
       } catch (e) {
-        this.appendEngineExplain('Embedded non disponibile: ' + (e && e.message) + '. Procedo con i fallback standard.');
+  this.appendEngineExplain('Embedded unavailable: ' + (e && e.message) + '. Falling back to standard candidates.');
         // Fall through to normal candidates
       }
     }
@@ -198,8 +198,8 @@ export class EngineManager {
 
     for (const url of candidates) {
       try {
-        this.setEngineStatus('loading ' + url);
-        this.appendEngineExplain(`Provo: ${url}`);
+  this.setEngineStatus('loading ' + url);
+  this.appendEngineExplain(`Trying: ${url}`);
 
         // Check for WASM file if this is a JS file
         try {
@@ -207,14 +207,14 @@ export class EngineManager {
           if (low.endsWith('.js') || low.includes('.js?')) {
             const wasmUrl = this.getWasmUrl(url);
             if (wasmUrl) {
-              this.appendEngineExplain(`Controllo WASM: ${wasmUrl}`);
+              this.appendEngineExplain(`Checking WASM: ${wasmUrl}`);
               try {
                 const resp = await fetch(wasmUrl, { method: 'HEAD' });
                 if (!resp.ok) {
-                  this.appendEngineExplain(`WASM non trovato o non accessibile (${resp.status}) per ${wasmUrl}. Provo comunque a caricare il worker.`);
+                  this.appendEngineExplain(`WASM not found or inaccessible (${resp.status}) for ${wasmUrl}. Will attempt to load worker anyway.`);
                 }
               } catch (fe) {
-                this.appendEngineExplain(`HEAD fallito per ${wasmUrl}: ${fe && fe.message}. Provo comunque.`);
+                this.appendEngineExplain(`HEAD failed for ${wasmUrl}: ${fe && fe.message}. Proceeding anyway.`);
               }
             }
           }
@@ -232,7 +232,7 @@ export class EngineManager {
         }
 
         if (!w) {
-          this.appendEngineExplain(`Impossibile avviare Worker per ${url}`);
+          this.appendEngineExplain(`Unable to start Worker for ${url}`);
           continue;
         }
 
@@ -248,7 +248,7 @@ export class EngineManager {
           
           w.onmessage = (ev) => {
             const d = (ev.data || '') + '';
-            this.appendEngineExplain(`Messaggio da ${url}: ${d}`);
+            this.appendEngineExplain(`Message from ${url}: ${d}`);
             if (/uciok|readyok|stockfish/i.test(d) || /uci/i.test(d)) {
               clearTimeout(t);
               resolve(true);
@@ -269,18 +269,18 @@ export class EngineManager {
           this.engineReady = true;
           this.engineWorker.onmessage = (ev) => this.onEngineMessage(ev);
           this.setEngineStatus('loaded');
-          this.appendEngineExplain(`Motore caricato da ${url}`);
+          this.appendEngineExplain(`Engine loaded from ${url}`);
           return this.engineWorker;
         }
-        this.appendEngineExplain(`Nessuna risposta valida da ${url}`);
+  this.appendEngineExplain(`No valid response from ${url}`);
       } catch (e) {
-        this.appendEngineExplain(`Eccezione durante prova ${url}: ${e && e.message}`);
+  this.appendEngineExplain(`Exception while trying ${url}: ${e && e.message}`);
       }
     }
 
     // No automatic embedded fallback: keep behavior predictable to avoid regressions.
     this.setEngineStatus('failed to load');
-    this.appendEngineExplain('Errore: nessun build disponibile o Worker bloccato. Controlla console per dettagli e verifica che il server serva .wasm con il MIME corretto.');
+  this.appendEngineExplain('Error: no build available or Worker blocked. Check console for details and ensure the server serves .wasm with the correct MIME.');
     return null;
   }
 
@@ -449,9 +449,9 @@ export class EngineManager {
     if (!bestMove) return '';
     const label = this.uciToAlgebraicLabel(bestMove);
     if (/^[a-h][1-8]$/.test(bestMove)) {
-      return `Analisi: l'engine indica la casella di partenza ${bestMove}. Probabilmente si tratta di una notazione troncata: prova a fare un'analisi più profonda o aumentare il tempo.`;
+      return `Analysis: engine suggests a starting square ${bestMove}. This looks truncated; try deeper analysis or more time.`;
     }
-    return `Analisi: la mossa suggerita è ${label}. Questa è la migliore mossa trovata dall'engine alla profondità richiesta.`;
+    return `Analysis: suggested move is ${label}. Best move found by the engine at current depth/time.`;
   }
 
   engineExplainFromInfo(scoreText, pvText) {
@@ -461,14 +461,14 @@ export class EngineManager {
       if (m) {
         const v = parseInt(m[1], 10);
         if (/mate/i.test(scoreText)) {
-          parts.push(`Valutazione: mate in ${m[1]}`);
+          parts.push(`Eval: mate in ${m[1]}`);
         } else {
-          parts.push(`Valutazione: ${v / 100} (centipawn)`);
+          parts.push(`Eval: ${v / 100} (centipawn)`);
         }
       }
     }
     if (pvText && pvText.trim()) {
-      parts.push(`Linea principale: ${pvText}`);
+  parts.push(`PV: ${pvText}`);
     }
     return parts.join(' — ');
   }
