@@ -680,7 +680,7 @@ def ludii_to_pgn(ludii_content, input_file, round_number, event_name, white_play
 
     if game_variant == "game=/lud/board/war/replacement/checkmate/chess/Chess.lud":
         return convert_chess(ludii_content, input_file, round_number, event_name, white_player, black_player)
-    elif game_variant == "game=/lud/board/war/replacement/checkmate/chess/Kriegspiel (Chess).lud":
+    elif 'kriegspiel' in game_variant.lower():
         return convert_kriegspiel(ludii_content, input_file, round_number, event_name, white_player, black_player)
     else:
         raise ValueError(f"Unsupported game variant: {game_variant}")

@@ -669,7 +669,7 @@ export function ludiiToPgn(ludiiContent: string, inputFile: string, eventName: s
 
     if (gameVariant === "game=/lud/board/war/replacement/checkmate/chess/Chess.lud") {
         return convertChess(ludiiContent, inputFile, eventName, whitePlayer, blackPlayer);
-    } else if (gameVariant === "game=/lud/board/war/replacement/checkmate/chess/Kriegspiel (Chess).lud") {
+    } else if (gameVariant.toLowerCase().includes('kriegspiel')) {
         return convertKriegspiel(ludiiContent, inputFile, eventName, whitePlayer, blackPlayer);
     } else {
         throw new Error(`Unsupported game variant: ${gameVariant}`);
