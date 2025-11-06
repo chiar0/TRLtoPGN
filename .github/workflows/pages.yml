@@ -9,6 +9,9 @@ on:
       - 'tools/**'
       - 'package.json'
       - 'tsconfig.json'
+      - 'trl-to-pgn.ts'
+      - 'pgn-to-trl.ts'
+      - 'TRLtoPGN.py'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
