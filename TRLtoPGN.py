@@ -272,8 +272,11 @@ def get_game_variant(ludii_content):
     """
     first_line = ludii_content.split('\n')[0].strip()
     
+    # Extract just the filename if it's a path
+    file_name_only = first_line.split('/')[-1] if '/' in first_line else first_line
+    
     # Check if it contains 'kriegspiel' (case-insensitive)
-    if 'kriegspiel' in first_line.lower():
+    if 'kriegspiel' in file_name_only.lower():
         return 'game=/lud/board/war/replacement/checkmate/chess/Kriegspiel (Chess).lud'
     
     # If it matches the standard Chess variant exactly

@@ -105,8 +105,11 @@ function getGameResult(ludiiContent: string): string {
 function getGameVariant(ludiiContent: string): string {
     const firstLine = ludiiContent.split('\n')[0].trim();
     
+    // Extract just the filename if it's a path
+    const fileNameOnly = firstLine.includes('/') ? firstLine.split('/').pop() || firstLine : firstLine;
+    
     // Check if it contains 'kriegspiel' (case-insensitive)
-    if (firstLine.toLowerCase().includes('kriegspiel')) {
+    if (fileNameOnly.toLowerCase().includes('kriegspiel')) {
         return 'game=/lud/board/war/replacement/checkmate/chess/Kriegspiel (Chess).lud';
     }
     
