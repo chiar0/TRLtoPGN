@@ -1,6 +1,6 @@
 {
   "name": "trl-to-pgn",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Comprehensive toolkit for converting between Ludii trial files (.trl) and Portable Game Notation (PGN) files for chess games",
   "main": "pgn-to-trl.ts",
   "type": "module",
