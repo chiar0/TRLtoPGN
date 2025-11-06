@@ -103,7 +103,20 @@ function getGameResult(ludiiContent: string): string {
  * Determines the chess variant from the Ludii content.
  */
 function getGameVariant(ludiiContent: string): string {
-    return ludiiContent.split('\n')[0].trim();
+    const firstLine = ludiiContent.split('\n')[0].trim();
+    
+    // Check if it contains 'kriegspiel' (case-insensitive)
+    if (firstLine.toLowerCase().includes('kriegspiel')) {
+        return 'game=/lud/board/war/replacement/checkmate/chess/Kriegspiel (Chess).lud';
+    }
+    
+    // If it matches the standard Chess variant exactly
+    if (firstLine === 'game=/lud/board/war/replacement/checkmate/chess/Chess.lud') {
+        return firstLine;
+    }
+    
+    // Otherwise it's unsupported
+    throw new Error(`Unsupported game variant: ${firstLine}`);
 }
 
 /**

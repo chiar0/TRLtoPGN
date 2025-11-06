@@ -270,8 +270,18 @@ def get_game_variant(ludii_content):
     This function extracts the game variant information from the first
     line of the Ludii content, which typically contains the game path.
     """
-    first_line = ludii_content.split('\n')[0]
-    return first_line.strip()
+    first_line = ludii_content.split('\n')[0].strip()
+    
+    # Check if it contains 'kriegspiel' (case-insensitive)
+    if 'kriegspiel' in first_line.lower():
+        return 'game=/lud/board/war/replacement/checkmate/chess/Kriegspiel (Chess).lud'
+    
+    # If it matches the standard Chess variant exactly
+    if first_line == 'game=/lud/board/war/replacement/checkmate/chess/Chess.lud':
+        return first_line
+    
+    # Otherwise it's unsupported
+    raise ValueError(f"Unsupported game variant: {first_line}")
     
 def filter_moves(input_file, output_file):
     """
